@@ -634,15 +634,7 @@ export default function ModulePanelContainer({
                                 <div className="text-lg font-semibold">Groupe : {g.nom}</div>
                                 {/*<div className="badge">Priorité {g.priorite}</div>*/}
                                 <div className="ml-auto join">
-                                    {allowTarifEditor && (
-                                        <button
-                                            type="button"
-                                            className="btn btn-sm btn-secondary join-item"
-                                            onClick={() => openTarifModal(g.id)}
-                                        >
-                                            Tarification
-                                        </button>
-                                    )}
+
                                     {!locked && actPickerFor === g.id && (
                                         <button className="btn btn-sm join-item" onClick={() => setActPickerFor(null)}>
                                             Fermer actes
@@ -650,13 +642,27 @@ export default function ModulePanelContainer({
                                     )}
 
                                     {locked ? (
-                                        <button
-                                            className="btn btn-sm btn-info join-item opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity"
-                                            aria-label="Modifier la grille"
-                                            onClick={() => setLocked(g.id, false)}
-                                        >
-                                            ✎ Edition
-                                        </button>
+                                        <>
+
+                                            {allowTarifEditor && (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-sm btn-secondary join-item opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity"
+                                                    onClick={() => openTarifModal(g.id)}
+                                                >
+                                                    Tarification
+                                                </button>
+                                            )}
+
+                                            <button
+                                                className="btn btn-sm btn-info join-item opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity"
+                                                aria-label="Modifier la grille"
+                                                onClick={() => setLocked(g.id, false)}
+                                            >
+                                                ✎ Edition
+                                            </button>
+                                        </>
+
                                     ) : (
                                         <>
                                             <button className="btn btn-sm join-item"

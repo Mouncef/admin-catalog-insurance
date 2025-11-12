@@ -25,7 +25,8 @@ export default function ReadonlyGroupMatrix({
                                                 niveauxSurco,
                                                 separateSets = false,
                                                 allowSurco = true,
-                                                optionDepth: _optionDepth = 0,
+                                                optionsEnabled = false,
+                                                optionLevels = [],
                                                 categoriesByModule,
                                                 actsByCategory,
                                                 membres,
@@ -54,6 +55,7 @@ export default function ReadonlyGroupMatrix({
     }, [allowSurco, niveauxSurco, baseLevels]);
     const showSurcoColumns = allowSurco !== false && surcoLevels.length > 0;
     const useSeparateColumns = showSurcoColumns && separateSets;
+
     const combinedLevels = useMemo(() => {
         const map = new Map();
         for (const lv of baseLevels || []) map.set(lv.id, lv);
@@ -62,12 +64,7 @@ export default function ReadonlyGroupMatrix({
         }
         return Array.from(map.values());
     }, [baseLevels, surcoLevels, showSurcoColumns]);
-    const effectiveBaseLevels = baseLevels.length ? baseLevels : combinedLevels;
-    const effectiveSurcoLevels = showSurcoColumns
-        ? (surcoLevels.length ? surcoLevels : effectiveBaseLevels)
-        : [];
 
-    // ===== base data
     const catsBase = useMemo(
         () => (categoriesByModule.get(module.id) || [])
             .slice()
@@ -94,7 +91,14 @@ export default function ReadonlyGroupMatrix({
     const toValObj = (actId, nivId, kind) =>
         valMapInitial.get(`${actId}::${nivId}::${kind}`) || coerceCellValue();
 
-    // ===== local UI state
+    const ensureEntry = (store, actId, levelId) => {
+        if (!actId || !levelId) return null;
+        store[actId] = store[actId] || {};
+        store[actId][levelId] = store[actId][levelId] || { baseVal: {}, options: {}, surcoVal: {} };
+        if (!store[actId][levelId].options) store[actId][levelId].options = {};
+        return store[actId][levelId];
+    };
+
     const initialCatOrder = useMemo(() => {
         const stored = Array.isArray(group?.cat_order) ? group.cat_order : [];
         if (stored.length === 0) return catsBase.map((c) => c.id);
@@ -111,13 +115,24 @@ export default function ReadonlyGroupMatrix({
     const [valuesByAct, setValuesByAct] = useState(() => {
         const out = {};
         for (const m of membresRows) {
-            const aId = m.act_id;
-            out[aId] = out[aId] || {};
             for (const n of combinedLevels || []) {
-                const base = toValObj(aId, n.id, 'base');
-                const surc = toValObj(aId, n.id, 'surco');
-                if ((base.value || base.expression || surc.value || surc.expression)) {
-                    out[aId][n.id] = { baseVal: base, surcoVal: surc };
+                ensureEntry(out, m.act_id, n.id);
+            }
+        }
+        for (const v of gvaleurs || []) {
+            if (v.groupe_id !== group.id) continue;
+            const entry = ensureEntry(out, v.act_id, v.niveau_id);
+            if (!entry) continue;
+            const kind = String(v.kind || 'base').toLowerCase();
+            if (kind === 'base') {
+                entry.baseVal = coerceCellValue(v);
+            } else if (kind === 'surco') {
+                entry.surcoVal = coerceCellValue(v);
+            } else if (kind.startsWith('option-')) {
+                const optionId = kind.slice('option-'.length);
+                if (optionId) {
+                    entry.options = entry.options || {};
+                    entry.options[optionId] = coerceCellValue(v);
                 }
             }
         }
@@ -126,50 +141,62 @@ export default function ReadonlyGroupMatrix({
     useEffect(() => {
         const next = {};
         for (const m of membresRows) {
-            const aId = m.act_id;
-            next[aId] = next[aId] || {};
             for (const n of combinedLevels || []) {
-                const base = toValObj(aId, n.id, 'base');
-                const surc = toValObj(aId, n.id, 'surco');
-                if ((base.value || base.expression || surc.value || surc.expression)) {
-                    next[aId][n.id] = { baseVal: base, surcoVal: surc };
+                ensureEntry(next, m.act_id, n.id);
+            }
+        }
+        for (const v of gvaleurs || []) {
+            if (v.groupe_id !== group.id) continue;
+            const entry = ensureEntry(next, v.act_id, v.niveau_id);
+            if (!entry) continue;
+            const kind = String(v.kind || 'base').toLowerCase();
+            if (kind === 'base') {
+                entry.baseVal = coerceCellValue(v);
+            } else if (kind === 'surco') {
+                entry.surcoVal = coerceCellValue(v);
+            } else if (kind.startsWith('option-')) {
+                const optionId = kind.slice('option-'.length);
+                if (optionId) {
+                    entry.options = entry.options || {};
+                    entry.options[optionId] = coerceCellValue(v);
                 }
             }
         }
         setValuesByAct(next);
-    }, [valMapInitial, membresRows, combinedLevels]);
+    }, [gvaleurs, group.id, membresRows, combinedLevels]);
 
     const membersSet = useMemo(() => new Set(membresRows.map((m) => m.act_id)), [membresRows]);
 
-    const baseHeaderItems = effectiveBaseLevels.length ? effectiveBaseLevels : [null];
-    const surcoHeaderItems = effectiveSurcoLevels.length ? effectiveSurcoLevels : [null];
-    const totalColumns = useSeparateColumns
-        ? 1 + baseHeaderItems.length + (showSurcoColumns ? surcoHeaderItems.length : 0)
-        : 1 + baseHeaderItems.length * (showSurcoColumns ? 2 : 1);
-    const safeLabel = (lvl, fallback) => lvl?.libelle || lvl?.code || fallback || '—';
-    const colDefs = useMemo(() => {
-        const defs = [{ key: 'garantie', style: { width: '260px' } }];
-        const addValueCol = (key) => defs.push({ key, style: { width: '160px' } });
+    const baseHeaderItems = baseLevels.length ? baseLevels : combinedLevels;
+    const surcoHeaderItems = useSeparateColumns
+        ? (surcoLevels.length ? surcoLevels : baseHeaderItems)
+        : baseHeaderItems;
 
-        if (useSeparateColumns) {
-            baseHeaderItems.forEach((lvl, idx) => addValueCol(`base-${lvl?.id || idx}`));
-            if (showSurcoColumns) {
-                surcoHeaderItems.forEach((lvl, idx) => addValueCol(`surco-${lvl?.id || idx}`));
+    const valueColumns = useMemo(() => {
+        const cols = [];
+        baseHeaderItems.forEach((lvl, idx) => {
+            cols.push({ key: `base-${lvl?.id || idx}`, kind: 'base', level: lvl });
+            if (optionsEnabled) {
+                cols.push({ key: `opt-${lvl?.id || idx}`, kind: 'option', level: lvl, optionLevelId: lvl?.id });
             }
-        } else {
-            baseHeaderItems.forEach((lvl, idx) => {
-                addValueCol(`base-${lvl?.id || idx}`);
-                if (showSurcoColumns) addValueCol(`surco-${lvl?.id || idx}`);
+            if (!useSeparateColumns && showSurcoColumns) {
+                cols.push({ key: `surco-${lvl?.id || idx}`, kind: 'surco', level: lvl });
+            }
+        });
+        if (useSeparateColumns && showSurcoColumns) {
+            surcoHeaderItems.forEach((lvl, idx) => {
+                cols.push({ key: `surco-sep-${lvl?.id || idx}`, kind: 'surco', level: lvl });
             });
         }
-        return defs;
-    }, [baseHeaderItems, surcoHeaderItems, useSeparateColumns, showSurcoColumns]);
+        return cols;
+    }, [baseHeaderItems, surcoHeaderItems, optionsEnabled, showSurcoColumns, useSeparateColumns]);
 
-    const getPair = (actId, levelId) => {
-        if (!levelId) return { baseVal: {}, surcoVal: {} };
-        return valuesByAct?.[actId]?.[levelId] || { baseVal: {}, surcoVal: {} };
-    };
-
+    const colDefs = useMemo(() => {
+        return [
+            { key: 'garantie', style: { width: '260px' } },
+            ...valueColumns.map((col) => ({ key: col.key, style: { width: '160px' } })),
+        ];
+    }, [valueColumns]);
 
     // ===== actions (si editable)
     function findActCategory(actId) {
@@ -222,73 +249,84 @@ export default function ReadonlyGroupMatrix({
         });
     }
 
-    // edition cellule (typed values)
-    const [editing, setEditing] = useState(null); // { actId, nivId, kind, draft, meta }
-    const handleDraftChange = (next) => {
-        setEditing((prev) =>
-            prev
-                ? {...prev, draft: next}
-                : prev
-        );
-    };
+    const [editing, setEditing] = useState(null);
 
-    function startEdit(act, level, kind) {
+    function getPair(actId, levelId) {
+        if (!actId || !levelId) return { baseVal: {}, options: {}, surcoVal: {} };
+        return valuesByAct?.[actId]?.[levelId] || { baseVal: {}, options: {}, surcoVal: {} };
+    }
+
+    function startEdit(act, level, columnKind, optionLevelId = null) {
         if (!editable) return;
         const actId = act?.id;
-        const nivId = level?.id;
-        if (!actId || !nivId) return;
-        const pair = getPair(actId, nivId);
-        const current = (kind === 'base' ? pair.baseVal : pair.surcoVal) || {};
+        const levelId = level?.id;
+        if (!actId || !levelId) return;
+        const pair = getPair(actId, levelId);
+        let current;
+        if (columnKind === 'base') current = pair.baseVal;
+        else if (columnKind === 'surco') current = pair.surcoVal;
+        else current = (pair.options || {})[optionLevelId || levelId] || {};
+
         const actLabel = act?.libelle || act?.code || '—';
-        const levelLabel = safeLabel(level, 'Niveau');
+        const levelLabel = level?.libelle || level?.code || 'Niveau';
+        const kindLabel = columnKind === 'base' ? 'Base' : columnKind === 'surco' ? 'Surco' : 'Option';
+
         setEditing({
             actId,
-            nivId,
-            kind,
+            nivId: levelId,
+            columnKind,
+            optionLevelId: optionLevelId || levelId,
             draft: coerceCellValue(current),
-            meta: {
-                actLabel,
-                levelLabel,
-                kindLabel: kind === 'base' ? 'Base' : 'Surco',
-            },
+            meta: { actLabel, levelLabel, kindLabel },
         });
     }
+
     function saveEdit() {
         if (!editing) return;
-        const { actId, nivId, kind, draft } = editing;
+        const { actId, nivId, columnKind, optionLevelId, draft } = editing;
         const payload = coerceCellValue(draft || {});
         setValuesByAct((prev) => {
             const next = { ...(prev || {}) };
             next[actId] = next[actId] || {};
-            next[actId][nivId] = next[actId][nivId] || { baseVal: {}, surcoVal: {} };
-            const key = kind === 'base' ? 'baseVal' : 'surcoVal';
-            next[actId][nivId][key] = payload;
+            const entry = next[actId][nivId] || { baseVal: {}, options: {}, surcoVal: {} };
+            if (!entry.options) entry.options = {};
+            if (columnKind === 'base') entry.baseVal = payload;
+            else if (columnKind === 'surco') entry.surcoVal = payload;
+            else if (optionLevelId) entry.options[optionLevelId] = payload;
+            next[actId][nivId] = entry;
             return next;
         });
         setEditing(null);
     }
+
     function cancelEdit() { setEditing(null); }
 
-    function renderCell({ key, act, level, kind }) {
+    function renderCell({ key, act, level, columnKind }) {
         const actId = act?.id;
         const levelId = level?.id;
+        const optionKey = levelId;
         const pair = getPair(actId, levelId);
-        const valueKey = kind === 'base' ? 'baseVal' : 'surcoVal';
-        const cellValue = pair?.[valueKey] || {};
+        let cellValue;
+        if (columnKind === 'base') cellValue = pair.baseVal;
+        else if (columnKind === 'surco') cellValue = pair.surcoVal;
+        else cellValue = (pair.options || {})[optionKey] || {};
+
         const isEditingCell =
             editable &&
             editing &&
             editing.actId === actId &&
             editing.nivId === levelId &&
-            editing.kind === kind;
-        const canEdit = editable && !!levelId;
+            editing.columnKind === columnKind &&
+            (columnKind !== 'option' || editing.optionLevelId === optionKey);
+
+        const canEdit = editable && !!actId && !!levelId;
         const highlight = isEditingCell ? 'bg-base-200/60' : '';
 
         return (
             <td
                 key={key}
                 className={`align-top text-center ${highlight}`}
-                onDoubleClick={() => canEdit && startEdit(act, level, kind)}
+                onDoubleClick={() => canEdit && startEdit(act, level, columnKind, optionKey)}
                 title={canEdit && editable ? 'Double-clique pour éditer' : ''}
             >
                 <CellView v={cellValue} />
@@ -296,7 +334,8 @@ export default function ReadonlyGroupMatrix({
         );
     }
 
-    // ===== submit
+    const hasSubHeader = true;
+
     function submitAll() {
         if (!editable) return;
 
@@ -316,13 +355,6 @@ export default function ReadonlyGroupMatrix({
 
     return (
         <div className="space-y-3">
-            {/*{editable && (
-                <div className="flex items-center justify-end gap-2">
-                    {onCancel && <button type="button" className="btn" onClick={onCancel}>Fermer</button>}
-                    <button type="button" className="btn btn-primary" onClick={submitAll}>Enregistrer la grille</button>
-                </div>
-            )}*/}
-
             <div className="overflow-x-auto">
                 <table className="table table-fixed w-full">
                     <colgroup>
@@ -335,63 +367,55 @@ export default function ReadonlyGroupMatrix({
                         <>
                             <tr>
                                 <th rowSpan={2} className="align-bottom" style={{ minWidth: 260 }}>Garantie</th>
-                                <th colSpan={Math.max(1, baseHeaderItems.length)} className="text-center">Base</th>
+                                <th colSpan={baseHeaderItems.length * (optionsEnabled ? 2 : 1)} className="text-center">Base</th>
                                 {showSurcoColumns && (
-                                    <th colSpan={Math.max(1, surcoHeaderItems.length)} className="text-center">
-                                        Surcomplémentaire
-                                    </th>
+                                    <th colSpan={surcoHeaderItems.length} className="text-center">Surcomplémentaire</th>
                                 )}
                             </tr>
                             <tr>
                                 {baseHeaderItems.map((lvl, idx) => (
-                                    <th key={`base-${lvl?.id || idx}`} className="text-center">
-                                        {safeLabel(lvl, `Base ${idx + 1}`)}
-                                    </th>
+                                    <Fragment key={`head-base-${lvl?.id || idx}`}>
+                                        <th className="text-center">{safeLevelLabel(lvl)}</th>
+                                        {optionsEnabled && (
+                                            <th className="text-center">Option {safeLevelLabel(lvl)}</th>
+                                        )}
+                                    </Fragment>
                                 ))}
                                 {showSurcoColumns && surcoHeaderItems.map((lvl, idx) => (
-                                    <th key={`surco-${lvl?.id || idx}`} className="text-center">
-                                        {safeLabel(lvl, `Surco ${idx + 1}`)}
-                                    </th>
+                                    <th key={`head-surco-${lvl?.id || idx}`} className="text-center">{safeLevelLabel(lvl)}</th>
                                 ))}
                             </tr>
                         </>
                     ) : (
                         <>
                             <tr>
-                                <th
-                                    rowSpan={showSurcoColumns ? 2 : 1}
-                                    className="align-bottom"
-                                    style={{ minWidth: 260 }}
-                                >
-                                    Garantie
-                                </th>
+                                <th rowSpan={2} className="align-bottom" style={{ minWidth: 260 }}>Garantie</th>
                                 {baseHeaderItems.map((lvl, idx) => (
                                     <th
-                                        key={`lvl-${lvl?.id || idx}`}
-                                        colSpan={showSurcoColumns ? 2 : 1}
+                                        key={`head-combined-${lvl?.id || idx}`}
+                                        colSpan={1 + (optionsEnabled ? 1 : 0) + (showSurcoColumns ? 1 : 0)}
                                         className="text-center"
                                     >
-                                        {safeLabel(lvl, `Niveau ${idx + 1}`)}
+                                        {safeLevelLabel(lvl)}
                                     </th>
                                 ))}
                             </tr>
-                            {showSurcoColumns && (
-                                <tr>
-                                    {baseHeaderItems.map((lvl, idx) => (
-                                        <Fragment key={`sub-${lvl?.id || idx}`}>
-                                            <th className="text-center">Base</th>
-                                            <th className="text-center">Surco</th>
-                                        </Fragment>
-                                    ))}
-                                </tr>
-                            )}
+                            <tr>
+                                {baseHeaderItems.map((lvl, idx) => (
+                                    <Fragment key={`head-sub-${lvl?.id || idx}`}>
+                                        <th className="text-center">Base</th>
+                                        {optionsEnabled && <th className="text-center">Option</th>}
+                                        {showSurcoColumns && <th className="text-center">Surco</th>}
+                                    </Fragment>
+                                ))}
+                            </tr>
                         </>
                     )}
                     </thead>
 
                     <tbody>
                     { catOrder.length === 0 && (
-                        <tr><td colSpan={Math.max(1, totalColumns)} className="text-center opacity-60">—</td></tr>
+                        <tr><td colSpan={colDefs.length} className="text-center opacity-60">—</td></tr>
                     )}
 
                     { (catOrder.map((id) => catsBase.find((c) => c.id === id)).filter(Boolean)).map((cat) => {
@@ -414,9 +438,8 @@ export default function ReadonlyGroupMatrix({
                         return (
                             <Fragment key={cat.id}>
                                 <tr className="bg-base-200">
-                                    <th colSpan={Math.max(1, totalColumns)} className="text-left">
+                                    <th colSpan={colDefs.length} className="text-left">
                                         <div className="flex items-center gap-2">
-                                            {/*<span className="badge badge-outline">{cat.code}</span>*/}
                                             <span className="opacity-70">{cat.libelle || '—'}</span>
                                             {editable && (
                                                 <div className="ml-auto join">
@@ -443,7 +466,6 @@ export default function ReadonlyGroupMatrix({
                                         <td className="table-pin-cols">
                                             <div className="flex items-center gap-2 w-full">
                                                 <div className="flex-1 min-w-0">
-                                                    {/*<div className="font-mono font-medium">{a.code}</div>*/}
                                                     <div className="opacity-70 truncate">{a.libelle || '—'}</div>
                                                 </div>
                                                 {editable && (
@@ -455,42 +477,13 @@ export default function ReadonlyGroupMatrix({
                                             </div>
                                         </td>
 
-                                        {useSeparateColumns ? (
-                                            <>
-                                                {baseHeaderItems.map((lvl, idx) =>
-                                                    renderCell({
-                                                        key: `row-${a.id}-base-${lvl?.id || idx}`,
-                                                        act: a,
-                                                        level: lvl,
-                                                        kind: 'base',
-                                                    })
-                                                )}
-                                                {showSurcoColumns && surcoHeaderItems.map((lvl, idx) =>
-                                                    renderCell({
-                                                        key: `row-${a.id}-surco-${lvl?.id || idx}`,
-                                                        act: a,
-                                                        level: lvl,
-                                                        kind: 'surco',
-                                                    })
-                                                )}
-                                            </>
-                                        ) : (
-                                            baseHeaderItems.map((lvl, idx) => (
-                                                <Fragment key={`row-${a.id}-lvl-${lvl?.id || idx}`}>
-                                                    {renderCell({
-                                                        key: `row-${a.id}-lvl-${lvl?.id || idx}-base`,
-                                                        act: a,
-                                                        level: lvl,
-                                                        kind: 'base',
-                                                    })}
-                                                    {showSurcoColumns && renderCell({
-                                                        key: `row-${a.id}-lvl-${lvl?.id || idx}-surco`,
-                                                        act: a,
-                                                        level: lvl,
-                                                        kind: 'surco',
-                                                    })}
-                                                </Fragment>
-                                            ))
+                                        {valueColumns.map((col) =>
+                                            renderCell({
+                                                key: `${a.id}-${col.key}`,
+                                                act: a,
+                                                level: col.level,
+                                                columnKind: col.kind,
+                                            })
                                         )}
                                     </tr>
                                 ))}
@@ -520,7 +513,7 @@ export default function ReadonlyGroupMatrix({
                         </p>
                         <ValueEditorTyped
                             value={editing.draft}
-                            onChange={handleDraftChange}
+                            onChange={(next) => setEditing((prev) => prev ? ({ ...prev, draft: next }) : prev)}
                         />
                         <div className="modal-action">
                             <button type="button" className="btn" onClick={cancelEdit}>Annuler</button>
@@ -532,4 +525,9 @@ export default function ReadonlyGroupMatrix({
             )}
         </div>
     );
+}
+
+function safeLevelLabel(level, fallback) {
+    if (!level) return fallback || 'Niveau';
+    return level.libelle || level.code || fallback || 'Niveau';
 }

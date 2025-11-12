@@ -48,6 +48,9 @@ export default function ModulePanelContainer({
 
     const moduleAllowsSurco = normalizeRisk(module?.risque) !== 'prevoyance';
     const allowTarifEditor = moduleAllowsSurco;
+    const setOptionDepthForModule = typeof onChangeOptionDepth === 'function'
+        ? (depth) => onChangeOptionDepth(Math.max(0, Math.floor(depth || 0)))
+        : null;
 
     const storedBaseSetId = selectedNiveauSetIdBase ?? legacySelectedNiveauSetId ?? null;
     const resolvedBaseSetId = useMemo(() => {
@@ -95,6 +98,21 @@ export default function ModulePanelContainer({
         const sorted = all.slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
         return sorted.length > 0 ? sorted : niveauxBaseList;
     }, [moduleAllowsSurco, allowMultipleNiveaux, resolvedSurcoSetId, refNiveau, niveauxBaseList]);
+
+    const baseOptionCount = niveauxBaseList.length;
+    const optionsEnabled = allowTarifEditor && optionDepthValue > 0;
+
+    useEffect(() => {
+        if (!optionsEnabled || !setOptionDepthForModule) return;
+        const required = baseOptionCount;
+        if (required <= 0) {
+            setOptionDepthForModule(0);
+            return;
+        }
+        if (optionDepthValue !== required) {
+            setOptionDepthForModule(required);
+        }
+    }, [optionsEnabled, baseOptionCount, optionDepthValue, module.id, setOptionDepthForModule]);
 
     const hasSeparateSurcoSet = moduleAllowsSurco
         && allowMultipleNiveaux
@@ -154,6 +172,21 @@ export default function ModulePanelContainer({
         if (!onChangeNiveauSetSurco) return;
         onChangeNiveauSetSurco(next);
         showToast('success', next ? 'Groupe Surco appliqué au module' : 'Surco alignée sur la Base');
+    }
+
+    function handleToggleOptions(enabled) {
+        if (!allowTarifEditor || !setOptionDepthForModule) return;
+        if (enabled) {
+            if (baseOptionCount <= 0) {
+                showToast('error', "Aucun niveau disponible pour définir des options.");
+                return;
+            }
+            setOptionDepthForModule(baseOptionCount);
+            showToast('success', 'Options activées');
+        } else {
+            setOptionDepthForModule(0);
+            showToast('info', 'Options désactivées');
+        }
     }
 
 
@@ -452,6 +485,12 @@ export default function ModulePanelContainer({
                         const hasSurc = cellHasContent(surcoVal);
                         if (hasBase) rows.push(normalizeCell(g.id, actId, nivId, 'base', baseVal));
                         if (hasSurc) rows.push(normalizeCell(g.id, actId, nivId, 'surco', surcoVal));
+                        if (optionsEnabled && pair?.options) {
+                            for (const [optLevelId, optVal] of Object.entries(pair.options)) {
+                                if (!optLevelId || !cellHasContent(optVal)) continue;
+                                rows.push(normalizeCell(g.id, actId, optLevelId, `option-${optLevelId}`, optVal));
+                            }
+                        }
                     }
                 }
                 return [...rest, ...rows];
@@ -527,14 +566,14 @@ export default function ModulePanelContainer({
                     )}
 
                     {typeof onChangeOptionDepth === 'function' && (
-                        <label className="form-control w-32">
-                            <span className="label-text text-xs opacity-70">Options</span>
+                        <label className="label cursor-pointer gap-2">
+                            <span className="label-text text-xs opacity-70">Définir les valeurs d'options</span>
                             <input
-                                type="number"
-                                min={0}
-                                className="input input-bordered input-sm"
-                                value={optionDepthValue}
-                                onChange={(e) => onChangeOptionDepth(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                                type="checkbox"
+                                className="toggle toggle-sm"
+                                checked={optionsEnabled}
+                                disabled={!allowTarifEditor || baseOptionCount === 0}
+                                onChange={(e) => handleToggleOptions(e.target.checked)}
                             />
                         </label>
                     )}
@@ -703,7 +742,8 @@ export default function ModulePanelContainer({
                                 niveauxSurco={moduleAllowsSurco ? niveauxSurcoList : []}
                                 separateSets={moduleAllowsSurco && hasSeparateSurcoSet}
                                 allowSurco={moduleAllowsSurco}
-                                optionDepth={optionDepthValue}
+                                optionsEnabled={optionsEnabled}
+                                optionLevels={niveauxBaseList}
                                 categoriesByModule={categoriesByModule}
                                 actsByCategory={actsByCategory}
                                 membres={membres}

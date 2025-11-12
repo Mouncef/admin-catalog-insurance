@@ -39,27 +39,35 @@ export function prefillFromStores(g, membres, gvaleurs, niveaux) {
     const membersArr = membersRows.map((m) => m.act_id);
 
     const toMini = (v) => coerceCellValue(v || {});
+    const ensureEntry = (store, actId, levelId) => {
+        if (!actId || !levelId) return null;
+        store[actId] = store[actId] || {};
+        store[actId][levelId] = store[actId][levelId] || { baseVal: {}, options: {}, surcoVal: {} };
+        if (!store[actId][levelId].options) store[actId][levelId].options = {};
+        return store[actId][levelId];
+    };
 
     const valuesByAct = {};
     for (const actId of membersArr) {
-        valuesByAct[actId] = {};
         for (const n of niveaux || []) {
-            const base = (gvaleurs || []).find(
-                (v) =>
-                    v.groupe_id === g.id &&
-                    v.act_id === actId &&
-                    v.niveau_id === n.id &&
-                    v.kind === 'base'
-            );
-            const surc = (gvaleurs || []).find(
-                (v) =>
-                    v.groupe_id === g.id &&
-                    v.act_id === actId &&
-                    v.niveau_id === n.id &&
-                    v.kind === 'surco'
-            );
-            if (base || surc) {
-                valuesByAct[actId][n.id] = { baseVal: toMini(base), surcoVal: toMini(surc) };
+            ensureEntry(valuesByAct, actId, n.id);
+        }
+    }
+
+    for (const row of gvaleurs || []) {
+        if (row.groupe_id !== g.id) continue;
+        const target = ensureEntry(valuesByAct, row.act_id, row.niveau_id);
+        if (!target) continue;
+        const kind = String(row.kind || 'base').toLowerCase();
+        if (kind === 'base') {
+            target.baseVal = toMini(row);
+        } else if (kind === 'surco') {
+            target.surcoVal = toMini(row);
+        } else if (kind.startsWith('option-')) {
+            const optionLevelId = kind.slice('option-'.length);
+            if (optionLevelId) {
+                target.options = target.options || {};
+                target.options[optionLevelId] = toMini(row);
             }
         }
     }

@@ -112,10 +112,7 @@ function ViewerModulePanel({
     }, [allowSurco, allEnabledLevels, selectedNiveauSetIdBase, selectedNiveauSetIdSurco]);
     // Flag d’affichage séparé
     const separateSets = allowSurco && !!selectedNiveauSetIdSurco && selectedNiveauSetIdSurco !== selectedNiveauSetIdBase;
-    const maxOptionDepth = Math.max(0, niveauxBase.length - 1);
-    const effectiveOptionDepth = moduleRisk === 'sante'
-        ? Math.min(Math.max(Math.floor(optionDepth) || 0, 0), maxOptionDepth)
-        : 0;
+    const optionsEnabled = moduleRisk === 'sante' && Math.max(Math.floor(optionDepth) || 0, 0) > 0;
 
 
     const myGroups = useMemo(
@@ -165,7 +162,8 @@ function ViewerModulePanel({
                                 niveauxSurco={niveauxSurco}
                                 separateSets={separateSets}
                                 allowSurco={allowSurco}
-                                optionDepth={effectiveOptionDepth}
+                                optionsEnabled={optionsEnabled}
+                                optionLevels={niveauxBase}
                                 categoriesByModule={categoriesByModule}
                                 actsByCategory={actsByCategory}
                                 membres={membres}
@@ -516,7 +514,8 @@ export default function CatalogueViewerPage() {
                                                         gvaleurs={gvaleurs}
                                                         groupes={groupes}
                                                         allowSurco={normalizeRisk(m?.risque) !== 'prevoyance'}
-                                                        optionDepth={getOptionDepthForModule(m.id)}
+                                                        optionsEnabled={optionsEnabled}
+                                                        optionLevels={niveauxBase}
                                                     />
                                                 </div>
                                             </Fragment>
@@ -546,7 +545,8 @@ export default function CatalogueViewerPage() {
                                             gvaleurs={gvaleurs}
                                             groupes={groupes}
                                             allowSurco={normalizeRisk(m?.risque) !== 'prevoyance'}
-                                            optionDepth={getOptionDepthForModule(m.id)}
+                                            optionsEnabled={optionsEnabled}
+                                            optionLevels={niveauxBase}
                                         />
                                     )
                                 })()}

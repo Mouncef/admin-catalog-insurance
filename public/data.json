@@ -1,0 +1,164 @@
+[
+  {
+    "id": "offre-INTERPRO",
+    "code": "INTERPRO",
+    "libelle": "Offre INTERPRO",
+    "catalogues": [
+      {
+        "id": "cat-int-2025-sante",
+        "risque": "sante",
+        "annee": 2025,
+        "version": "2025 v1.6",
+        "status": "active",
+        "niveaux": [
+          { "id": "n1-int", "code": "N1", "ordre": 1 },
+          { "id": "n2-int", "code": "N2", "ordre": 2 },
+          { "id": "n3-int", "code": "N3", "ordre": 3 }
+        ],
+        "modules": [
+          {
+            "id": "mod-soins",
+            "code": "SOINS_COURANTS",
+            "libelle": "Soins Courants",
+            "categories": [
+              {
+                "id": "cat-hon-med",
+                "code": "HONORAIRES_MEDICAUX",
+                "libelle": "Honoraires Médicaux",
+                "acts": [
+                  { "id": "act-consult-dptam", "code": "CONSULT_MED_DPTAM", "libelle": "Consultation médecin adhérant DPTAM", "allow_surco": true }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "mod-dentaire",
+            "code": "DENTAIRE",
+            "libelle": "Dentaire",
+            "categories": [
+              { "id": "cat-100s", "code": "SOINS_100_SANTE", "libelle": "Soins 100% santé", "acts": [] }
+            ]
+          }
+        ],
+        "valeurs": {
+          "acte_valeur": [
+            { "cat_acte_id": "act-consult-dptam", "niveau_id": "n1-int", "kind": "base", "mode": "taux_sur_base", "base": "tm", "taux": 100, "unite": "pourcent", "expression": "100% TM" },
+            { "cat_acte_id": "act-consult-dptam", "niveau_id": "n2-int", "kind": "base", "mode": "taux_sur_base", "base": "tm", "taux": 200, "unite": "pourcent", "expression": "200% TM" },
+            { "cat_acte_id": "act-consult-dptam", "niveau_id": "n3-int", "kind": "base", "mode": "texte_libre", "expression": "TM + 50% BR" },
+            { "cat_acte_id": "act-consult-dptam", "niveau_id": "n1-int", "kind": "surco", "mode": "taux_sur_base", "base": "br", "taux": 20, "unite": "pourcent", "expression": "20% BR" }
+          ],
+          "categorie_valeur": [
+            { "cat_categorie_id": "cat-100s", "niveau_id": "n1-int", "kind": "base", "mode": "texte_libre", "expression": "100% PLV-MR" },
+            { "cat_categorie_id": "cat-100s", "niveau_id": "n2-int", "kind": "base", "mode": "texte_libre", "expression": "100% PLV-MR" },
+            { "cat_categorie_id": "cat-100s", "niveau_id": "n3-int", "kind": "base", "mode": "texte_libre", "expression": "100% PLV-MR" }
+          ]
+        }
+      },
+      {
+        "id": "cat-int-2025-prev",
+        "risque": "prevoyance",
+        "annee": 2025,
+        "version": "2025 v1.0",
+        "status": "active",
+        "niveaux": [
+          { "id": "prev-int-base", "code": "BASE", "ordre": 1 }
+        ],
+        "modules": [
+          {
+            "id": "mod-prev-garanties",
+            "code": "PREV_GARANTIES",
+            "libelle": "Garanties prévoyance",
+            "categories": [
+              {
+                "id": "cat-prev-capital",
+                "code": "DECES_CAPITAL",
+                "libelle": "Décès en capital",
+                "acts": [
+                  { "id": "act-prev-capital-solo", "code": "CAPITAL_SITUATION_FAMILLE", "libelle": "Capital décès — célibataire sans enfant", "allow_surco": false },
+                  { "id": "act-prev-capital-marie", "code": "CAPITAL_MARIE_SANS_ENFANT", "libelle": "Capital décès — marié ou personne à charge", "allow_surco": false },
+                  { "id": "act-prev-capital-majoration", "code": "CAPITAL_MAJ_ENFANT", "libelle": "Capital décès — majoration par enfant", "allow_surco": false },
+                  { "id": "act-prev-ptia", "code": "PTIA_ANTICIPATION", "libelle": "PTIA — versement par anticipation", "allow_surco": false },
+                  { "id": "act-prev-deces-accident", "code": "DECES_ACCIDENTEL", "libelle": "Décès accidentel (capital supplémentaire)", "allow_surco": false },
+                  { "id": "act-prev-double-effet", "code": "DOUBLE_EFFET", "libelle": "Double effet (100% du capital décès)", "allow_surco": false }
+                ]
+              },
+              {
+                "id": "cat-prev-obseques",
+                "code": "FRAIS_OBSEQUES",
+                "libelle": "Frais d’obsèques",
+                "acts": [
+                  { "id": "act-prev-obseques", "code": "FRAIS_OBSEQUES_PMSS", "libelle": "Frais d’obsèques — salarié, conjoint, enfants", "allow_surco": false }
+                ]
+              },
+              {
+                "id": "cat-prev-rentes",
+                "code": "RENTE_EDUCATION",
+                "libelle": "Rentes éducation",
+                "acts": [
+                  { "id": "act-prev-rente-0-10", "code": "RENTE_EDU_0_10", "libelle": "Rente éducation jusqu’à 10 ans", "allow_surco": false },
+                  { "id": "act-prev-rente-11-18", "code": "RENTE_EDU_11_18", "libelle": "Rente éducation de 11 à 18 ans", "allow_surco": false },
+                  { "id": "act-prev-rente-19-26", "code": "RENTE_EDU_19_26", "libelle": "Rente éducation de 19 à 26 ans", "allow_surco": false }
+                ]
+              },
+              {
+                "id": "cat-prev-services",
+                "code": "SERVICES",
+                "libelle": "Services associés",
+                "acts": [
+                  { "id": "act-prev-service-assistance", "code": "SERVICE_ASSISTANCE_CONFORT", "libelle": "Assistance CONFORT", "allow_surco": false },
+                  { "id": "act-prev-service-previa", "code": "SERVICE_PREVIA", "libelle": "PREVIA", "allow_surco": false },
+                  { "id": "act-prev-service-db", "code": "SERVICE_DB_LIGNE", "libelle": "DB en ligne - quijedesigne.fr", "allow_surco": false }
+                ]
+              }
+            ]
+          }
+        ],
+        "valeurs": {
+          "acte_valeur": [
+            { "cat_acte_id": "act-prev-capital-solo", "niveau_id": "prev-int-base", "kind": "base", "mode": "taux_sur_base", "base": "salaire_ref", "taux": 100, "unite": "pourcent", "expression": "100% du salaire de référence" },
+            { "cat_acte_id": "act-prev-capital-marie", "niveau_id": "prev-int-base", "kind": "base", "mode": "taux_sur_base", "base": "salaire_ref", "taux": 150, "unite": "pourcent", "expression": "150% du salaire de référence" },
+            { "cat_acte_id": "act-prev-capital-majoration", "niveau_id": "prev-int-base", "kind": "base", "mode": "taux_sur_base", "base": "salaire_ref", "taux": 50, "unite": "pourcent", "expression": "Majoration par enfant à charge : +50% du salaire de référence" },
+            { "cat_acte_id": "act-prev-ptia", "niveau_id": "prev-int-base", "kind": "base", "mode": "texte_libre", "expression": "Inclus — versement par anticipation du décès toutes causes" },
+            { "cat_acte_id": "act-prev-deces-accident", "niveau_id": "prev-int-base", "kind": "base", "mode": "taux_sur_base", "base": "capital_dc", "taux": 100, "unite": "pourcent", "expression": "100% du capital décès en cas d’accident (y compris AVC)" },
+            { "cat_acte_id": "act-prev-double-effet", "niveau_id": "prev-int-base", "kind": "base", "mode": "texte_libre", "expression": "Inclus — double effet 100% du capital décès" },
+            { "cat_acte_id": "act-prev-obseques", "niveau_id": "prev-int-base", "kind": "base", "mode": "taux_sur_base", "base": "pmss", "taux": 50, "unite": "pourcent", "expression": "50% du PMSS pour le salarié, le conjoint et les enfants" },
+            { "cat_acte_id": "act-prev-rente-0-10", "niveau_id": "prev-int-base", "kind": "base", "mode": "taux_sur_base", "base": "salaire_ref", "taux": 3, "unite": "pourcent", "expression": "3% du salaire de référence (jusqu’à 10 ans)" },
+            { "cat_acte_id": "act-prev-rente-11-18", "niveau_id": "prev-int-base", "kind": "base", "mode": "taux_sur_base", "base": "salaire_ref", "taux": 8, "unite": "pourcent", "expression": "8% du salaire de référence (11 à 18 ans)" },
+            { "cat_acte_id": "act-prev-rente-19-26", "niveau_id": "prev-int-base", "kind": "base", "mode": "taux_sur_base", "base": "salaire_ref", "taux": 13, "unite": "pourcent", "expression": "13% du salaire de référence (19 à 26 ans sous conditions)" },
+            { "cat_acte_id": "act-prev-service-assistance", "niveau_id": "prev-int-base", "kind": "base", "mode": "texte_libre", "expression": "Assistance CONFORT - Inclus" },
+            { "cat_acte_id": "act-prev-service-previa", "niveau_id": "prev-int-base", "kind": "base", "mode": "texte_libre", "expression": "PREVIA - Inclus" },
+            { "cat_acte_id": "act-prev-service-db", "niveau_id": "prev-int-base", "kind": "base", "mode": "texte_libre", "expression": "DB en ligne - quijedesigne.fr - Inclus" }
+          ],
+          "categorie_valeur": []
+        }
+      }
+    ]
+  },
+  {
+    "id": "offre-PROPLUS",
+    "code": "PROPLUS",
+    "libelle": "Offre PROPLUS",
+    "catalogues": [
+      {
+        "id": "cat-pro-2025-sante",
+        "risque": "sante",
+        "annee": 2025,
+        "version": "2025 v1.0",
+        "status": "active",
+        "niveaux": [{ "id": "n1-pro", "code": "N1", "ordre": 1 }],
+        "modules": [],
+        "valeurs": { "acte_valeur": [], "categorie_valeur": [] }
+      },
+      {
+        "id": "cat-pro-2025-prev",
+        "risque": "prevoyance",
+        "annee": 2025,
+        "version": "2025 v1.0",
+        "status": "active",
+        "niveaux": [{ "id": "p1-pro", "code": "P1", "ordre": 1 }],
+        "modules": [],
+        "valeurs": { "acte_valeur": [], "categorie_valeur": [] }
+      }
+    ]
+  }
+]

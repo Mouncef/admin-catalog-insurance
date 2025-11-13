@@ -8,6 +8,7 @@ import {prefillFromStores, normalizeCell} from '@/lib/utils/CatalogueInline';
 import {useGroupeUIState} from '@/providers/AppDataProvider';
 import { normalizeRisk } from '@/lib/utils/StringUtil';
 import TarifsEditor from '@/components/catalogues/tarifs/TarifsEditor';
+import SubItemModal from '@/components/catalogues/inline/SubItemModal';
 
 export default function ModulePanelContainer({
                                                  module,
@@ -46,8 +47,9 @@ export default function ModulePanelContainer({
     );
     const niveauSetIdSet = useMemo(() => new Set(niveauSetOptions.map((s) => s.id)), [niveauSetOptions]);
 
-    const moduleAllowsSurco = normalizeRisk(module?.risque) !== 'prevoyance';
-    const allowTarifEditor = moduleAllowsSurco;
+    const moduleRisk = normalizeRisk(module?.risque);
+    const moduleAllowsSurco = moduleRisk !== 'prevoyance';
+    const allowTarifEditor = moduleRisk === 'sante';
     const setOptionDepthForModule = typeof onChangeOptionDepth === 'function'
         ? (depth) => onChangeOptionDepth(Math.max(0, Math.floor(depth || 0)))
         : null;
@@ -245,6 +247,9 @@ export default function ModulePanelContainer({
     const [createOpen, setCreateOpen] = useState(false);
     const [actPickerFor, setActPickerFor] = useState(null);
     const [tarifEditorGroupId, setTarifEditorGroupId] = useState(null);
+    const [subItemModal, setSubItemModal] = useState(null); // { groupId, parentActId, subItem? }
+
+    const allowSubItems = moduleRisk === 'prevoyance';
 
     useEffect(() => {
         if (tarifEditorGroupId && (!allowTarifEditor || !myGroups.some((g) => g.id === tarifEditorGroupId))) {
@@ -287,6 +292,45 @@ export default function ModulePanelContainer({
         });
         showToast('success', 'Tarifs enregistrés');
         setTarifEditorGroupId(null);
+    }
+
+    function openSubItemModal(groupId, parentActId, subItem = null) {
+        if (!allowSubItems) return;
+        setSubItemModal({ groupId, parentActId, subItem });
+    }
+
+    function closeSubItemModal() {
+        setSubItemModal(null);
+    }
+
+    function saveSubItem({ groupId, parentActId, subItemId, libelle }) {
+        setGroupes((prev) =>
+            (prev || []).map((g) => {
+                if (g.id !== groupId) return g;
+                const next = Array.isArray(g.sub_items) ? [...g.sub_items] : [];
+                if (subItemId) {
+                    const idx = next.findIndex((si) => si.id === subItemId);
+                    if (idx >= 0) next[idx] = {...next[idx], libelle};
+                } else {
+                    next.push({id: uuid(), parent_act_id: parentActId, libelle});
+                }
+                return {...g, sub_items: next};
+            })
+        );
+        showToast('success', subItemId ? 'Sous-item modifié' : 'Sous-item ajouté');
+        setSubItemModal(null);
+    }
+
+    function removeSubItem(groupId, subItemId) {
+        if (!allowSubItems) return;
+        setGroupes((prev) =>
+            (prev || []).map((g) => {
+                if (g.id !== groupId) return g;
+                return {...g, sub_items: (g.sub_items || []).filter((si) => si.id !== subItemId)};
+            })
+        );
+        setGvaleurs((prev) => (prev || []).filter((v) => v.act_id !== subItemId));
+        showToast('info', 'Sous-item supprimé');
     }
 
     // ===== helpers ordre
@@ -565,7 +609,7 @@ export default function ModulePanelContainer({
                         </div>
                     )}
 
-                    {typeof onChangeOptionDepth === 'function' && (
+                    {typeof onChangeOptionDepth === 'function' && allowTarifEditor && (
                         <label className="label cursor-pointer gap-2">
                             <span className="label-text text-xs opacity-70">Définir les valeurs d'options</span>
                             <input
@@ -665,6 +709,14 @@ export default function ModulePanelContainer({
             {myGroups.map((g) => {
                 const pref = prefillFromStores(g, membres, gvaleurs, allNiveauxForPrefill);
                 const locked = !!uiState[g.id]?.locked;
+                const subItems = Array.isArray(g.sub_items)
+                    ? g.sub_items.filter((si) => si.parent_act_id && si.libelle)
+                    : [];
+                const subItemsByParent = new Map();
+                for (const si of subItems) {
+                    if (!subItemsByParent.has(si.parent_act_id)) subItemsByParent.set(si.parent_act_id, []);
+                    subItemsByParent.get(si.parent_act_id).push(si);
+                }
 
                 return (
                     <div key={g.id} className="card bg-base-100 shadow-md relative group">
@@ -744,6 +796,10 @@ export default function ModulePanelContainer({
                                 allowSurco={moduleAllowsSurco}
                                 optionsEnabled={optionsEnabled}
                                 optionLevels={niveauxBaseList}
+                                allowSubItems={allowSubItems}
+                                subItemsMap={subItemsByParent}
+                                onAddSubItem={allowSubItems ? (payload) => openSubItemModal(g.id, payload.act.id, payload.subItem || null) : undefined}
+                                onRemoveSubItem={allowSubItems ? (subId) => removeSubItem(g.id, subId) : undefined}
                                 categoriesByModule={categoriesByModule}
                                 actsByCategory={actsByCategory}
                                 membres={membres}
@@ -766,6 +822,20 @@ export default function ModulePanelContainer({
                     initialRowsSurco={editingTarifRowsSurco}
                     onSave={(rows) => saveTarifs(editingTarifGroup.id, rows)}
                     onClose={closeTarifModal}
+                />
+            )}
+
+            {allowSubItems && subItemModal && (
+                <SubItemModal
+                    open
+                    initialValue={subItemModal.subItem}
+                    onSave={({ libelle }) => saveSubItem({
+                        groupId: subItemModal.groupId,
+                        parentActId: subItemModal.subItem?.parent_act_id || subItemModal.parentActId,
+                        subItemId: subItemModal.subItem?.id,
+                        libelle,
+                    })}
+                    onClose={closeSubItemModal}
                 />
             )}
         </div>

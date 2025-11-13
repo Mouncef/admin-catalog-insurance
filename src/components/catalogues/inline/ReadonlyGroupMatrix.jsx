@@ -27,6 +27,10 @@ export default function ReadonlyGroupMatrix({
                                                 allowSurco = true,
                                                 optionsEnabled = false,
                                                 optionLevels = [],
+                                                allowSubItems = false,
+                                                subItemsMap = new Map(),
+                                                onAddSubItem,
+                                                onRemoveSubItem,
                                                 categoriesByModule,
                                                 actsByCategory,
                                                 membres,
@@ -461,32 +465,89 @@ export default function ReadonlyGroupMatrix({
                                     </th>
                                 </tr>
 
-                                {acts.map((a) => (
-                                    <tr key={a.id}>
-                                        <td className="table-pin-cols">
-                                            <div className="flex items-center gap-2 w-full">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="opacity-70 truncate">{a.libelle || '—'}</div>
-                                                </div>
-                                                {editable && (
-                                                    <div className="join">
-                                                        <button className="btn btn-xs join-item" onClick={() => moveAct(a.id, 'up')}>▲</button>
-                                                        <button className="btn btn-xs join-item" onClick={() => moveAct(a.id, 'down')}>▼</button>
+                                {acts.map((a) => {
+                                    const subRows = subItemsMap?.get(a.id) || [];
+                                    return (
+                                        <Fragment key={a.id}>
+                                            <tr>
+                                                <td className="table-pin-cols">
+                                                    <div className="flex items-center gap-2 w-full">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="opacity-70 truncate">{a.libelle || '—'}</div>
+                                                        </div>
+                                                        {allowSubItems && editable && (
+                                                            <div className="join">
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-xs btn-ghost join-item"
+                                                                    onClick={() => onAddSubItem?.({ act: a })}
+                                                                    title="Ajouter un sous-item"
+                                                                >
+                                                                    + Sous-item
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        {editable && (
+                                                            <div className="join">
+                                                                <button className="btn btn-xs join-item" onClick={() => moveAct(a.id, 'up')}>▲</button>
+                                                                <button className="btn btn-xs join-item" onClick={() => moveAct(a.id, 'down')}>▼</button>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                )}
-                                            </div>
-                                        </td>
+                                                </td>
 
-                                        {valueColumns.map((col) =>
-                                            renderCell({
-                                                key: `${a.id}-${col.key}`,
-                                                act: a,
-                                                level: col.level,
-                                                columnKind: col.kind,
-                                            })
-                                        )}
-                                    </tr>
-                                ))}
+                                                {valueColumns.map((col) =>
+                                                    renderCell({
+                                                        key: `${a.id}-${col.key}`,
+                                                        act: a,
+                                                        level: col.level,
+                                                        columnKind: col.kind,
+                                                    })
+                                                )}
+                                            </tr>
+
+                                            {subRows.map((sub) => (
+                                                <tr key={sub.id}>
+                                                    <td className="table-pin-cols pl-8">
+                                                        <div className="flex items-center gap-2 w-full">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="opacity-70 truncate">↳ {sub.libelle}</div>
+                                                            </div>
+                                                            {allowSubItems && editable && (
+                                                                <div className="join">
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn btn-xs btn-ghost join-item"
+                                                                        onClick={() => onAddSubItem?.({ act: a, subItem: sub })}
+                                                                        title="Modifier ce sous-item"
+                                                                    >
+                                                                        Modifier
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn btn-xs btn-ghost text-error join-item"
+                                                                        onClick={() => onRemoveSubItem?.(sub.id)}
+                                                                        title="Supprimer ce sous-item"
+                                                                    >
+                                                                        Supprimer
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    {valueColumns.map((col) =>
+                                                        renderCell({
+                                                            key: `${sub.id}-${col.key}`,
+                                                            act: {...a, id: sub.id, libelle: sub.libelle, isSubItem: true},
+                                                            level: col.level,
+                                                            columnKind: col.kind,
+                                                        })
+                                                    )}
+                                                </tr>
+                                            ))}
+                                        </Fragment>
+                                    );
+                                })}
                             </Fragment>
                         );
                     })}

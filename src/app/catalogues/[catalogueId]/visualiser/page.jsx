@@ -100,6 +100,7 @@ function ViewerModulePanel({
         const out = list.length ? list : allEnabledLevels;
         return out.slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
     }, [allEnabledLevels, selectedNiveauSetIdBase]);
+    console.log(niveauxBase);
     // Niveaux Surco (par défaut suit Base)
     const niveauxSurco = useMemo(() => {
         if (!allowSurco) return [];
@@ -144,34 +145,45 @@ function ViewerModulePanel({
                     <div className="alert alert-info">Aucun groupe défini pour ce module.</div>
                 )}
 
-                {myGroups.map((g) => (
-                    <div key={g.id} className="card bg-base-200/40 shadow-sm mb-4">
-                        <div className="card-body p-4">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="text-base sm:text-lg font-semibold">
-                                    Groupe : {g.nom}
+                {myGroups.map((g) => {
+                    const subItems = Array.isArray(g.sub_items)
+                        ? g.sub_items.filter((si) => si.parent_act_id && si.libelle)
+                        : [];
+                    const subItemsByParent = new Map();
+                    for (const si of subItems) {
+                        if (!subItemsByParent.has(si.parent_act_id)) subItemsByParent.set(si.parent_act_id, []);
+                        subItemsByParent.get(si.parent_act_id).push(si);
+                    }
+                    return (
+                        <div key={g.id} className="card bg-base-200/40 shadow-sm mb-4">
+                            <div className="card-body p-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="text-base sm:text-lg font-semibold">
+                                        Groupe : {g.nom}
+                                    </div>
                                 </div>
-                            </div>
 
-                            <ReadonlyGroupMatrix
-                                editable={false}
-                                editorMode="modal"
-                                group={g}
-                                module={module}
-                                niveauxBase={niveauxBase}
-                                niveauxSurco={niveauxSurco}
-                                separateSets={separateSets}
-                                allowSurco={allowSurco}
-                                optionsEnabled={optionsEnabled}
-                                optionLevels={niveauxBase}
-                                categoriesByModule={categoriesByModule}
-                                actsByCategory={actsByCategory}
-                                membres={membres}
-                                gvaleurs={gvaleurs}
-                            />
+                                <ReadonlyGroupMatrix
+                                    editable={false}
+                                    group={g}
+                                    module={module}
+                                    niveauxBase={niveauxBase}
+                                    niveauxSurco={niveauxSurco}
+                                    separateSets={separateSets}
+                                    allowSurco={allowSurco}
+                                    optionsEnabled={optionsEnabled}
+                                    optionLevels={niveauxBase}
+                                    allowSubItems={false}
+                                    subItemsMap={subItemsByParent}
+                                    categoriesByModule={categoriesByModule}
+                                    actsByCategory={actsByCategory}
+                                    membres={membres}
+                                    gvaleurs={gvaleurs}
+                                />
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );
@@ -480,6 +492,8 @@ export default function CatalogueViewerPage() {
                                     {includedModules.map((m, idx) => {
                                         const cnt = groupsCountByModule.get(m.id) || 0;
                                         const setIds = getSetIdsForModule(m.id);
+                                        const moduleOptionDepth = getOptionDepthForModule(m.id) || 0;
+                                        const moduleOptionsEnabled = normalizeRisk(m?.risque) === 'sante' && moduleOptionDepth > 0;
                                         const label =
                                             `${m.libelle}` ///*${m.code}*/ +
                                         // `${cnt ? ` • ${cnt} gr.` : ''}` +
@@ -514,10 +528,9 @@ export default function CatalogueViewerPage() {
                                                         gvaleurs={gvaleurs}
                                                         groupes={groupes}
                                                         allowSurco={normalizeRisk(m?.risque) !== 'prevoyance'}
-                                                        optionsEnabled={optionsEnabled}
-                                                        optionLevels={niveauxBase}
+                                                        optionsEnabled={moduleOptionsEnabled}
                                                     />
-                                                </div>
+                                               </div>
                                             </Fragment>
                                         );
                                     })}
@@ -545,8 +558,7 @@ export default function CatalogueViewerPage() {
                                             gvaleurs={gvaleurs}
                                             groupes={groupes}
                                             allowSurco={normalizeRisk(m?.risque) !== 'prevoyance'}
-                                            optionsEnabled={optionsEnabled}
-                                            optionLevels={niveauxBase}
+                                            optionsEnabled={normalizeRisk(m?.risque) === 'sante' && (getOptionDepthForModule(m.id) || 0) > 0}
                                         />
                                     )
                                 })()}

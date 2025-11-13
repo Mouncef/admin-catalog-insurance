@@ -38,6 +38,16 @@ export function prefillFromStores(g, membres, gvaleurs, niveaux) {
         .sort((a, b) => (a.ordre || 1e9) - (b.ordre || 1e9));
     const membersArr = membersRows.map((m) => m.act_id);
 
+    const subItems = Array.isArray(g?.sub_items)
+        ? g.sub_items
+            .map((si) => ({
+                id: si.id || '',
+                parent_act_id: si.parent_act_id,
+                libelle: String(si.libelle || '').trim(),
+            }))
+            .filter((si) => si.id && si.parent_act_id)
+        : [];
+
     const toMini = (v) => coerceCellValue(v || {});
     const ensureEntry = (store, actId, levelId) => {
         if (!actId || !levelId) return null;
@@ -51,6 +61,12 @@ export function prefillFromStores(g, membres, gvaleurs, niveaux) {
     for (const actId of membersArr) {
         for (const n of niveaux || []) {
             ensureEntry(valuesByAct, actId, n.id);
+        }
+    }
+
+    for (const sub of subItems) {
+        for (const n of niveaux || []) {
+            ensureEntry(valuesByAct, sub.id, n.id);
         }
     }
 

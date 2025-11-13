@@ -20,6 +20,15 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
     const out = [];
     for (const raw of arr) {
         if (!raw) continue;
+        const subItems = Array.isArray(raw.sub_items)
+            ? raw.sub_items
+                .map((si) => ({
+                    id: si.id || uuid(),
+                    parent_act_id: si.parent_act_id,
+                    libelle: String(si.libelle || '').trim(),
+                }))
+                .filter((si) => si.parent_act_id && si.libelle)
+            : [];
         const g = {
             id: raw.id || uuid(),
             catalogue_id: raw.catalogue_id,
@@ -29,6 +38,7 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
             cat_order: Array.isArray(raw.cat_order) ? raw.cat_order : (raw.cat_order ?? []),
             // 🔑 NOUVEAU : ordre (peut être null → fallback tri)
             ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : null,
+            sub_items: subItems,
         };
         if (!g.catalogue_id || !catalogueMap?.has(g.catalogue_id)) continue;
         if (!g.ref_module_id || !moduleMap?.has(g.ref_module_id)) continue;

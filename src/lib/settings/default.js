@@ -1600,6 +1600,7 @@ export const defaultSettings = {
                     "min": 0,
                     "max": 1000,
                     "step": 1,
+                    "default": 100,
                     "suffix": "%"
                 },
                 {
@@ -1687,6 +1688,280 @@ export const defaultSettings = {
                     "kind": "text",
                     "required": true,
                     "placeholder": "ex: 200% TM, 300% BR, Forfait 160 €/an..."
+                }
+            ]
+        },
+        {
+            "id": "percent_salary_reference_select",
+            "code": "%REF_LIST",
+            "libelle": "Pourcentage du salaire de référence (liste)",
+            "fields": [
+                {
+                    "name": "percent",
+                    "kind": "enum",
+                    "required": true,
+                    "label": "Pourcentage",
+                    "options": [
+                        {"id": "100%", "label": "100 %"},
+                        {"id": "125%", "label": "125 %"},
+                        {"id": "150%", "label": "150 %"},
+                        {"id": "175%", "label": "175 %"},
+                        {"id": "200%", "label": "200 %"},
+                        {"id": "250%", "label": "250 %"}
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "percent_salary_reference_input",
+            "code": "%REF_IN",
+            "libelle": "Pourcentage du salaire de référence (saisie)",
+            "fields": [
+                {
+                    "name": "percent",
+                    "kind": "number",
+                    "required": true,
+                    "label": "Pourcentage",
+                    "min": 0,
+                    "max": 500,
+                    "step": 1,
+                    "default": 100,
+                    "suffix": "%"
+                }
+            ]
+        },
+        {
+            "id": "percent_salary_brut_input",
+            "code": "%BRUT",
+            "libelle": "Pourcentage du salaire brut",
+            "fields": [
+                {
+                    "name": "percent",
+                    "kind": "number",
+                    "required": true,
+                    "label": "Pourcentage",
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                    "default": 80,
+                    "suffix": "%"
+                }
+            ]
+        },
+        {
+            "id": "percent_salary_net_input",
+            "code": "%NET",
+            "libelle": "Pourcentage du salaire net",
+            "fields": [
+                {
+                    "name": "percent",
+                    "kind": "number",
+                    "required": true,
+                    "label": "Pourcentage",
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                    "default": 60,
+                    "suffix": "%"
+                }
+            ]
+        },
+        {
+            "id": "franchise_days",
+            "code": "FRANCHISE",
+            "libelle": "Franchise (jours)",
+            "fields": [
+                {
+                    "name": "days",
+                    "kind": "number",
+                    "required": true,
+                    "label": "Nombre de jours",
+                    "min": 0,
+                    "max": 365,
+                    "step": 1,
+                    "suffix": "j"
+                },
+                {
+                    "name": "type",
+                    "kind": "enum",
+                    "required": false,
+                    "label": "Type de franchise",
+                    "options": [
+                        {"id": "standard", "label": "Standard"},
+                        {"id": "ecourtee", "label": "Écourtée (hospitalisation + 3 j)"}
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "amount_euros",
+            "code": "MONTANT",
+            "libelle": "Montant en euros",
+            "fields": [
+                {
+                    "name": "amount",
+                    "kind": "number",
+                    "required": true,
+                    "label": "Montant",
+                    "min": 0,
+                    "step": 1,
+                    "suffix": "€"
+                }
+            ]
+        }
+    ],
+    prevoyance_catalogue_templates: [
+        {
+            id: "prev-deces-capital",
+            libelle: "Décès en capital",
+            acts: [
+                {
+                    id: "act-prev-deces-flat",
+                    label: "Capital quel que soit la situation de famille",
+                    description: "Pourcentage unique du salaire de référence",
+                    field_type: "radio",
+                    sub_items: [
+                        {
+                            id: "sub-prev-deces-flat-principal",
+                            libelle: "Montant principal",
+                            description: "Valeur principale délivrée côté client",
+                            field_type: "radio",
+                            value_type_id: "percent_salary_reference_select",
+                            min_hint: "≥ 100 %",
+                            max_hint: "≤ 250 %"
+                        },
+                        {
+                            id: "sub-prev-deces-flat-ptia",
+                            libelle: "PTIA (toutes causes)",
+                            description: "Activation de l’option PTIA",
+                            field_type: "checkbox",
+                            value_type_id: "free_text"
+                        },
+                        {
+                            id: "sub-prev-deces-flat-accident",
+                            libelle: "Décès accidentel / AVC",
+                            description: "Capital supplémentaire 100 %",
+                            field_type: "checkbox",
+                            value_type_id: "free_text"
+                        },
+                        {
+                            id: "sub-prev-deces-flat-double-effet",
+                            libelle: "Double effet",
+                            description: "100 % supplémentaire en cas de double effet",
+                            field_type: "checkbox",
+                            value_type_id: "free_text"
+                        }
+                    ]
+                },
+                {
+                    id: "act-prev-deces-family",
+                    label: "Capital en fonction de la situation familiale",
+                    description: "Pourcentages variables selon la situation",
+                    field_type: "radio",
+                    sub_items: [
+                        {
+                            id: "sub-prev-deces-family-single",
+                            libelle: "Célibataire / veuf / sans enfant",
+                            description: "Liste prédéfinie",
+                            field_type: "select",
+                            value_type_id: "percent_salary_reference_select",
+                            min_hint: "≥ 100 %",
+                            max_hint: "≤ 250 %"
+                        },
+                        {
+                            id: "sub-prev-deces-family-maried",
+                            libelle: "Marié ou CVDS avec personne à charge",
+                            description: "Pourcentage personnalisé",
+                            field_type: "radio",
+                            value_type_id: "percent_salary_reference_input",
+                            min_hint: "≥ 100 %",
+                            max_hint: "≤ 250 %"
+                        },
+                        {
+                            id: "sub-prev-deces-family-majoration",
+                            libelle: "Majoration par enfant / personne à charge",
+                            description: "Majoration supplémentaire par enfant",
+                            field_type: "radio",
+                            value_type_id: "percent_salary_reference_input",
+                            min_hint: "≥ 0 %",
+                            max_hint: "≤ 50 %"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            id: "prev-frais-obseques",
+            libelle: "Frais d'obsèques",
+            acts: [
+                {
+                    id: "act-prev-obseques-global",
+                    label: "Couverture frais d'obsèques",
+                    description: "Sélection du niveau pour salarié/conjoint/enfants",
+                    field_type: "radio",
+                    sub_items: [
+                        {
+                            id: "sub-prev-obseques-salarie",
+                            libelle: "Salarié",
+                            field_type: "select",
+                            value_type_id: "percent_salary_reference_select",
+                            min_hint: "≥ 50 %",
+                            max_hint: "≤ 200 %"
+                        },
+                        {
+                            id: "sub-prev-obseques-conjoint",
+                            libelle: "Conjoint et enfants",
+                            field_type: "select",
+                            value_type_id: "percent_salary_reference_select",
+                            min_hint: "≥ 50 %",
+                            max_hint: "≤ 200 %"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            id: "prev-rente-education",
+            libelle: "Rente éducation",
+            acts: [
+                {
+                    id: "act-prev-rente-education-8-18-26",
+                    label: "Formule 8 ans / 18 ans / 26 ans",
+                    description: "Sélection des pourcentages par tranche",
+                    field_type: "radio",
+                    sub_items: [
+                        {
+                            id: "sub-prev-rente-8",
+                            libelle: "Jusqu'à 8 ans",
+                            field_type: "radio",
+                            value_type_id: "percent_salary_reference_input",
+                            min_hint: "≥ 4 %",
+                            max_hint: "≤ 10 %"
+                        },
+                        {
+                            id: "sub-prev-rente-18",
+                            libelle: "De 9 à 18 ans",
+                            field_type: "radio",
+                            value_type_id: "percent_salary_reference_input",
+                            min_hint: "≥ 6 %",
+                            max_hint: "≤ 12 %"
+                        },
+                        {
+                            id: "sub-prev-rente-26",
+                            libelle: "De 19 à 26 ans",
+                            field_type: "radio",
+                            value_type_id: "percent_salary_reference_input",
+                            min_hint: "≥ 6 %",
+                            max_hint: "≤ 12 %"
+                        },
+                        {
+                            id: "sub-prev-rente-viagere",
+                            libelle: "Rente viagère enfants handicapés",
+                            description: "Option (case à cocher)",
+                            field_type: "checkbox",
+                            value_type_id: "free_text"
+                        }
+                    ]
                 }
             ]
         }

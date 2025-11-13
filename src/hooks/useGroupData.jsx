@@ -22,12 +22,18 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
         if (!raw) continue;
         const subItems = Array.isArray(raw.sub_items)
             ? raw.sub_items
-                .map((si) => ({
-                    id: si.id || uuid(),
-                    parent_act_id: si.parent_act_id,
-                    libelle: String(si.libelle || '').trim(),
-                }))
-                .filter((si) => si.parent_act_id && si.libelle)
+                .map((si) => {
+                    const libelle = String(si.libelle || '').trim();
+                    if (!si.parent_act_id || !libelle) return null;
+                    return {
+                        id: si.id || uuid(),
+                        parent_act_id: si.parent_act_id,
+                        libelle,
+                        description: String(si.description || '').trim(),
+                        field_type: si.field_type || 'radio',
+                    };
+                })
+                .filter((si) => !!si)
             : [];
         const g = {
             id: raw.id || uuid(),
@@ -60,10 +66,31 @@ export function sanitizeMembres(arr) {
         if (!raw || !raw.groupe_id || !raw.act_id) continue;
         const gid = raw.groupe_id;
         if (!byGroup.has(gid)) byGroup.set(gid, []);
+        const schemaRaw = raw.ui_schema || {};
+        const options = Array.isArray(schemaRaw.options)
+            ? schemaRaw.options
+                .map((opt) => ({
+                    label: String(opt?.label || '').trim(),
+                    value: opt?.value ?? opt?.label ?? '',
+                }))
+                .filter((opt) => !!opt.label)
+            : [];
+        const ui_schema = {
+            label: String(schemaRaw.label || ''),
+            description: String(schemaRaw.description || ''),
+            field_type: schemaRaw.field_type || 'radio',
+            unit: schemaRaw.unit || '',
+            default_value: schemaRaw.default_value ?? '',
+            min: typeof schemaRaw.min === 'number' ? schemaRaw.min : null,
+            max: typeof schemaRaw.max === 'number' ? schemaRaw.max : null,
+            step: typeof schemaRaw.step === 'number' ? schemaRaw.step : null,
+            options,
+        };
         byGroup.get(gid).push({
             groupe_id: gid,
             act_id: raw.act_id,
             ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : Infinity,
+            ui_schema,
         });
     }
     const out = [];

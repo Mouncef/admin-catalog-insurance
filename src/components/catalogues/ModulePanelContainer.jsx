@@ -93,6 +93,9 @@ export default function ModulePanelContainer({
     }, [refNiveau, resolvedBaseSetId]);
 
     const niveauxBaseList = niveauxEnabled;
+    const effectiveNiveauxBase = moduleRisk === 'prevoyance'
+        ? (niveauxBaseList.length ? niveauxBaseList.slice(0, 1) : [])
+        : niveauxBaseList;
     const niveauxSurcoList = useMemo(() => {
         if (!moduleAllowsSurco) return [];
         if (!allowMultipleNiveaux || !resolvedSurcoSetId) return niveauxBaseList;
@@ -101,7 +104,7 @@ export default function ModulePanelContainer({
         return sorted.length > 0 ? sorted : niveauxBaseList;
     }, [moduleAllowsSurco, allowMultipleNiveaux, resolvedSurcoSetId, refNiveau, niveauxBaseList]);
 
-    const baseOptionCount = niveauxBaseList.length;
+    const baseOptionCount = effectiveNiveauxBase.length;
     const optionsEnabled = allowTarifEditor && optionDepthValue > 0;
 
     useEffect(() => {
@@ -123,10 +126,10 @@ export default function ModulePanelContainer({
         && resolvedBaseSetId !== resolvedSurcoSetId;
     const allNiveauxForPrefill = useMemo(() => {
         const map = new Map();
-        for (const n of niveauxBaseList || []) map.set(n.id, n);
+        for (const n of effectiveNiveauxBase || []) map.set(n.id, n);
         for (const n of niveauxSurcoList || []) map.set(n.id, n);
         return Array.from(map.values());
-    }, [niveauxBaseList, niveauxSurcoList]);
+    }, [effectiveNiveauxBase, niveauxSurcoList]);
 
     // changement de set: choix UI purge (optionnelle) des valeurs existantes du module
     const changeBaseSet = onChangeNiveauSetBase || legacyOnChangeNiveauSet;
@@ -247,7 +250,7 @@ export default function ModulePanelContainer({
     const [createOpen, setCreateOpen] = useState(false);
     const [actPickerFor, setActPickerFor] = useState(null);
     const [tarifEditorGroupId, setTarifEditorGroupId] = useState(null);
-    const [subItemModal, setSubItemModal] = useState(null); // { groupId, parentActId, subItem? }
+    const [subItemModal, setSubItemModal] = useState(null); // { groupId, parentAct, subItem? }
 
     const allowSubItems = moduleRisk === 'prevoyance';
 
@@ -294,25 +297,31 @@ export default function ModulePanelContainer({
         setTarifEditorGroupId(null);
     }
 
-    function openSubItemModal(groupId, parentActId, subItem = null) {
-        if (!allowSubItems) return;
-        setSubItemModal({ groupId, parentActId, subItem });
+    function openSubItemModal(groupId, parentAct, subItem = null) {
+        if (!allowSubItems || !parentAct?.id) return;
+        setSubItemModal({ groupId, parentAct, subItem });
     }
 
     function closeSubItemModal() {
         setSubItemModal(null);
     }
 
-    function saveSubItem({ groupId, parentActId, subItemId, libelle }) {
+    function saveSubItem({ groupId, parentActId, subItemId, libelle, description, field_type }) {
         setGroupes((prev) =>
             (prev || []).map((g) => {
                 if (g.id !== groupId) return g;
                 const next = Array.isArray(g.sub_items) ? [...g.sub_items] : [];
                 if (subItemId) {
                     const idx = next.findIndex((si) => si.id === subItemId);
-                    if (idx >= 0) next[idx] = {...next[idx], libelle};
+                    if (idx >= 0) next[idx] = {...next[idx], libelle, description, field_type};
                 } else {
-                    next.push({id: uuid(), parent_act_id: parentActId, libelle});
+                    next.push({
+                        id: uuid(),
+                        parent_act_id: parentActId,
+                        libelle,
+                        description,
+                        field_type,
+                    });
                 }
                 return {...g, sub_items: next};
             })
@@ -332,6 +341,7 @@ export default function ModulePanelContainer({
         setGvaleurs((prev) => (prev || []).filter((v) => v.act_id !== subItemId));
         showToast('info', 'Sous-item supprimé');
     }
+
 
     // ===== helpers ordre
     function nextOrderForModule(list = myGroups) {
@@ -403,7 +413,11 @@ export default function ModulePanelContainer({
             .sort((a, b) => (a.ordre || 0) - (b.ordre || 0) || a.code.localeCompare(b.code))
             .map((a) => a.id);
 
-        const nextMembers = actsRefSorted.map((actId, i) => ({groupe_id: gid, act_id: actId, ordre: i + 1}));
+        const nextMembers = actsRefSorted.map((actId, i) => ({
+            groupe_id: gid,
+            act_id: actId,
+            ordre: i + 1,
+        }));
         setMembres([...(membres || []), ...nextMembers]);
 
         setLocked(gid, false);
@@ -434,6 +448,7 @@ export default function ModulePanelContainer({
             .filter((m) => m.groupe_id === gid)
             .sort((a, b) => (a.ordre || 1e9) - (b.ordre || 1e9));
 
+        const byActId = new Map(currentRows.map((row) => [row.act_id, row]));
         const keepSorted = currentRows.filter((r) => keep.includes(r.act_id)).map((r) => r.act_id);
         const addSorted = add
             .map((id) => actMap.get(id))
@@ -444,7 +459,15 @@ export default function ModulePanelContainer({
         const finalOrder = [...keepSorted, ...addSorted];
 
         const others = (membres || []).filter((m) => m.groupe_id !== gid);
-        const nextMembers = finalOrder.map((actId, i) => ({groupe_id: gid, act_id: actId, ordre: i + 1}));
+        const nextMembers = finalOrder.map((actId, i) => {
+            const existing = byActId.get(actId);
+            if (existing) return {...existing, ordre: i + 1};
+            return {
+                groupe_id: gid,
+                act_id: actId,
+                ordre: i + 1,
+            };
+        });
         setMembres([...others, ...nextMembers]);
 
         showToast('success', 'Actes du groupe mis à jour');
@@ -717,7 +740,6 @@ export default function ModulePanelContainer({
                     if (!subItemsByParent.has(si.parent_act_id)) subItemsByParent.set(si.parent_act_id, []);
                     subItemsByParent.get(si.parent_act_id).push(si);
                 }
-
                 return (
                     <div key={g.id} className="card bg-base-100 shadow-md relative group">
                         <div className="card-body p-4">
@@ -790,15 +812,15 @@ export default function ModulePanelContainer({
                                 group={g}
                                 module={module}
                                 niveaux={allNiveauxForPrefill}
-                                niveauxBase={niveauxBaseList}
+                                niveauxBase={effectiveNiveauxBase}
                                 niveauxSurco={moduleAllowsSurco ? niveauxSurcoList : []}
                                 separateSets={moduleAllowsSurco && hasSeparateSurcoSet}
                                 allowSurco={moduleAllowsSurco}
                                 optionsEnabled={optionsEnabled}
-                                optionLevels={niveauxBaseList}
+                                optionLevels={effectiveNiveauxBase}
                                 allowSubItems={allowSubItems}
                                 subItemsMap={subItemsByParent}
-                                onAddSubItem={allowSubItems ? (payload) => openSubItemModal(g.id, payload.act.id, payload.subItem || null) : undefined}
+                                onAddSubItem={allowSubItems ? ({ act, subItem }) => openSubItemModal(g.id, act, subItem || null) : undefined}
                                 onRemoveSubItem={allowSubItems ? (subId) => removeSubItem(g.id, subId) : undefined}
                                 categoriesByModule={categoriesByModule}
                                 actsByCategory={actsByCategory}
@@ -815,7 +837,7 @@ export default function ModulePanelContainer({
             {allowTarifEditor && editingTarifGroup && (
                 <TarifsEditor
                     group={editingTarifGroup}
-                    niveauxBase={niveauxBaseList}
+                    niveauxBase={effectiveNiveauxBase}
                     niveauxSurco={moduleAllowsSurco ? niveauxSurcoList : []}
                     allowSurco={moduleAllowsSurco}
                     initialRowsBase={editingTarifRowsBase}
@@ -828,16 +850,18 @@ export default function ModulePanelContainer({
             {allowSubItems && subItemModal && (
                 <SubItemModal
                     open
+                    parentActLabel={subItemModal.parentAct?.libelle || subItemModal.parentAct?.code || ''}
                     initialValue={subItemModal.subItem}
-                    onSave={({ libelle }) => saveSubItem({
+                    onSave={(payload) => saveSubItem({
                         groupId: subItemModal.groupId,
-                        parentActId: subItemModal.subItem?.parent_act_id || subItemModal.parentActId,
+                        parentActId: subItemModal.subItem?.parent_act_id || subItemModal.parentAct?.id,
                         subItemId: subItemModal.subItem?.id,
-                        libelle,
+                        ...payload,
                     })}
                     onClose={closeSubItemModal}
                 />
             )}
+
         </div>
     );
 }

@@ -3,6 +3,22 @@
 import {useMemo} from 'react'
 import {useRefValueTypes} from '@/providers/AppDataProvider'
 
+const cloneFields = (fields = []) => fields.map((f) => ({...f}));
+
+const mergeFieldDefinitions = (base = [], override = []) => {
+    const map = new Map();
+    for (const field of base) {
+        if (!field?.name) continue;
+        map.set(field.name, {...field});
+    }
+    for (const field of override || []) {
+        if (!field?.name) continue;
+        const prev = map.get(field.name) || {};
+        map.set(field.name, {...prev, ...field});
+    }
+    return Array.from(map.values());
+};
+
 const FALLBACK_VALUE_TYPES = [
     {
         id: 'percent_base',
@@ -65,19 +81,105 @@ const FALLBACK_VALUE_TYPES = [
             },
         ],
     },
+    {
+        id: 'percent_salary_reference_select',
+        code: '%REF_LIST',
+        libelle: 'Pourcentage du salaire de référence (liste)',
+        fields: [
+            {
+                name: 'percent',
+                kind: 'enum',
+                required: true,
+                label: 'Pourcentage',
+                options: [
+                    {id: '100%', label: '100 %'},
+                    {id: '125%', label: '125 %'},
+                    {id: '150%', label: '150 %'},
+                    {id: '175%', label: '175 %'},
+                    {id: '200%', label: '200 %'},
+                    {id: '250%', label: '250 %'},
+                ],
+            },
+        ],
+    },
+    {
+        id: 'percent_salary_reference_input',
+        code: '%REF_IN',
+        libelle: 'Pourcentage du salaire de référence (saisie)',
+        fields: [
+            {name: 'percent', kind: 'number', required: true, label: 'Pourcentage', min: 0, max: 500, step: 1, suffix: '%'},
+        ],
+    },
+    {
+        id: 'percent_salary_brut_input',
+        code: '%BRUT',
+        libelle: 'Pourcentage du salaire brut',
+        fields: [
+            {name: 'percent', kind: 'number', required: true, label: 'Pourcentage', min: 0, max: 100, step: 1, suffix: '%'},
+        ],
+    },
+    {
+        id: 'percent_salary_net_input',
+        code: '%NET',
+        libelle: 'Pourcentage du salaire net',
+        fields: [
+            {name: 'percent', kind: 'number', required: true, label: 'Pourcentage', min: 0, max: 100, step: 1, suffix: '%'},
+        ],
+    },
+    {
+        id: 'franchise_days',
+        code: 'FRANCHISE',
+        libelle: 'Franchise (jours)',
+        fields: [
+            {name: 'days', kind: 'number', required: true, label: 'Nombre de jours', min: 0, max: 365, step: 1, suffix: 'j'},
+            {
+                name: 'type',
+                kind: 'enum',
+                required: false,
+                label: 'Type de franchise',
+                options: [
+                    {id: 'standard', label: 'Standard'},
+                    {id: 'ecourtee', label: 'Écourtée (hospitalisation + 3 j)'},
+                ],
+            },
+        ],
+    },
+    {
+        id: 'amount_euros',
+        code: '€',
+        libelle: 'Montant en euros',
+        fields: [
+            {name: 'amount', kind: 'number', required: true, label: 'Montant', min: 0, step: 1, suffix: '€'},
+        ],
+    },
 ]
 
 const mergeTypes = (primary = [], fallback = []) => {
-    const out = []
-    const seen = new Set()
-    for (const list of [primary, fallback]) {
-        for (const type of list) {
-            if (!type?.id || seen.has(type.id)) continue
-            seen.add(type.id)
-            out.push(type)
+    const map = new Map()
+    for (const type of fallback) {
+        if (!type?.id) continue
+        map.set(type.id, {
+            ...type,
+            fields: cloneFields(type.fields),
+        })
+    }
+    for (const type of primary) {
+        if (!type?.id) continue
+        const prev = map.get(type.id)
+        if (!prev) {
+            map.set(type.id, {
+                ...type,
+                fields: cloneFields(type.fields),
+            })
+        } else {
+            map.set(type.id, {
+                ...prev,
+                ...type,
+                fields: mergeFieldDefinitions(prev.fields, type.fields),
+            })
         }
     }
-    return out.length ? out : fallback
+    return Array.from(map.values())
 }
 
 const normalizeValue = (val) => {
@@ -129,6 +231,33 @@ const computeLabel = (type, data, def) => {
             .filter(Boolean)
             .join(', ')
     }
+    if (type === 'percent_salary_reference_select' || type === 'percent_salary_reference_input') {
+        const val = data?.percent
+        if (!val && val !== 0) return ''
+        const suffix = String(val).includes('%') ? val : `${val}%`
+        return `${suffix} du salaire de référence`
+    }
+    if (type === 'percent_salary_brut_input') {
+        const val = data?.percent
+        if (!val && val !== 0) return ''
+        const suffix = String(val).includes('%') ? val : `${val}%`
+        return `${suffix} du salaire brut`
+    }
+    if (type === 'percent_salary_net_input') {
+        const val = data?.percent
+        if (!val && val !== 0) return ''
+        const suffix = String(val).includes('%') ? val : `${val}%`
+        return `${suffix} du salaire net`
+    }
+    if (type === 'franchise_days') {
+        const days = data?.days
+        const typeLabel = def.fields.find((f) => f.name === 'type')?.options?.find((o) => o.id === data?.type)?.label
+        return [days != null && `${days} jours`, typeLabel].filter(Boolean).join(' — ')
+    }
+    if (type === 'amount_euros') {
+        const amount = data?.amount
+        return amount != null && amount !== '' ? `${amount} €` : ''
+    }
     const summary = []
     for (const field of def.fields || []) {
         const raw = data?.[field.name]
@@ -156,6 +285,10 @@ const withTypeChanged = (current, newType, types) => {
     def?.fields?.forEach((field) => {
         if (field.kind === 'boolean') {
             initialData[field.name] = false
+        } else if (field.kind === 'number' && typeof field.default === 'number') {
+            initialData[field.name] = field.default
+        } else if (field.kind === 'enum' && field.options?.length) {
+            initialData[field.name] = field.options[0].id
         } else {
             initialData[field.name] = ''
         }
@@ -192,9 +325,9 @@ const renderField = (field, fieldValue, setField) => {
                         type="number"
                         className={`input input-bordered w-full ${field.suffix ? 'pr-14' : ''}`}
                         {...commonProps}
-                        min={field.min}
-                        max={field.max}
-                        step={field.step}
+                        min={field.min ?? undefined}
+                        max={field.max ?? undefined}
+                        step={field.step ?? undefined}
                         value={fieldValue ?? ''}
                         onChange={(e) => setField(field.name, e.target.value === '' ? '' : Number(e.target.value))}
                     />
@@ -266,6 +399,12 @@ export default function ValueEditor({title, value, onChange, valueTypes: valueTy
         onChange?.(next)
     }
 
+    const handleMetaChange = (metaKey, metaValue) => {
+        const current = normalizeValue(value);
+        const data = {...(current.data || {}), [metaKey]: metaValue};
+        onChange?.({...current, data});
+    };
+
     return (
         <div className="border border-base-300 rounded-box p-3">
             {title && <div className="text-lg font-semibold mb-2">{title}</div>}
@@ -286,6 +425,28 @@ export default function ValueEditor({title, value, onChange, valueTypes: valueTy
                 {typeDef?.fields?.map((field) =>
                     renderField(field, normalizedValue.data?.[field.name], handleFieldChange)
                 )}
+
+                <label className="floating-label">
+                    <span>Valeur minimale (affichage)</span>
+                    <input
+                        type="text"
+                        className="input input-bordered w-full"
+                        value={normalizedValue.data?.min_hint ?? ''}
+                        onChange={(e) => handleMetaChange('min_hint', e.target.value)}
+                        placeholder="Ex: ≥ 100 %"
+                    />
+                </label>
+
+                <label className="floating-label">
+                    <span>Valeur maximale (affichage)</span>
+                    <input
+                        type="text"
+                        className="input input-bordered w-full"
+                        value={normalizedValue.data?.max_hint ?? ''}
+                        onChange={(e) => handleMetaChange('max_hint', e.target.value)}
+                        placeholder="Ex: ≤ 250 %"
+                    />
+                </label>
 
                 {normalizedValue.type !== 'free_text' && (
                     <label className="floating-label">

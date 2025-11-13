@@ -100,7 +100,11 @@ function ViewerModulePanel({
         const out = list.length ? list : allEnabledLevels;
         return out.slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
     }, [allEnabledLevels, selectedNiveauSetIdBase]);
-    console.log(niveauxBase);
+    const effectiveNiveauxBase = useMemo(() => {
+        return moduleRisk === 'prevoyance'
+            ? (niveauxBase.length ? niveauxBase.slice(0, 1) : [])
+            : niveauxBase;
+    }, [moduleRisk, niveauxBase]);
     // Niveaux Surco (par défaut suit Base)
     const niveauxSurco = useMemo(() => {
         if (!allowSurco) return [];
@@ -113,7 +117,8 @@ function ViewerModulePanel({
     }, [allowSurco, allEnabledLevels, selectedNiveauSetIdBase, selectedNiveauSetIdSurco]);
     // Flag d’affichage séparé
     const separateSets = allowSurco && !!selectedNiveauSetIdSurco && selectedNiveauSetIdSurco !== selectedNiveauSetIdBase;
-    const optionsEnabled = moduleRisk === 'sante' && Math.max(Math.floor(optionDepth) || 0, 0) > 0;
+    const optionDepthValue = Math.max(Math.floor(optionDepth) || 0, 0);
+    const optionsEnabled = moduleRisk === 'sante' && optionDepthValue > 0;
 
 
     const myGroups = useMemo(
@@ -167,12 +172,12 @@ function ViewerModulePanel({
                                     editable={false}
                                     group={g}
                                     module={module}
-                                    niveauxBase={niveauxBase}
+                                    niveauxBase={effectiveNiveauxBase}
                                     niveauxSurco={niveauxSurco}
                                     separateSets={separateSets}
                                     allowSurco={allowSurco}
                                     optionsEnabled={optionsEnabled}
-                                    optionLevels={niveauxBase}
+                                    optionLevels={effectiveNiveauxBase}
                                     allowSubItems={false}
                                     subItemsMap={subItemsByParent}
                                     categoriesByModule={categoriesByModule}

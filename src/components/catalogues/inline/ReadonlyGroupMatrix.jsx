@@ -7,11 +7,19 @@ import { coerceCellValue } from '@/lib/utils/CatalogueInline';
 function CellView({ v }) {
     const hasV = (v?.value || '').trim().length > 0;
     const hasE = (v?.expression || '').trim().length > 0;
+    const minHint = v?.data?.min_hint;
+    const maxHint = v?.data?.max_hint;
     if (!hasV && !hasE) return <span className="opacity-40">—</span>;
     return (
         <div className="min-h-8">
             {hasV && <div className="font-mono text-sm break-words">{v.value}</div>}
             {hasE && <div className="text-xs opacity-70 break-words" title={v.expression}>{v.expression}</div>}
+            {(minHint || maxHint) && (
+                <div className="text-xs opacity-60 mt-1 space-y-0.5">
+                    {minHint && <div>Min : {minHint}</div>}
+                    {maxHint && <div>Max : {maxHint}</div>}
+                </div>
+            )}
         </div>
     );
 }
@@ -305,10 +313,10 @@ export default function ReadonlyGroupMatrix({
 
     function cancelEdit() { setEditing(null); }
 
-    function renderCell({ key, act, level, columnKind }) {
+    function renderCell({ key, act, level, columnKind, optionLevelId = null }) {
         const actId = act?.id;
         const levelId = level?.id;
-        const optionKey = levelId;
+        const optionKey = optionLevelId || levelId;
         const pair = getPair(actId, levelId);
         let cellValue;
         if (columnKind === 'base') cellValue = pair.baseVal;
@@ -475,8 +483,8 @@ export default function ReadonlyGroupMatrix({
                                                         <div className="flex-1 min-w-0">
                                                             <div className="opacity-70 truncate">{a.libelle || '—'}</div>
                                                         </div>
-                                                        {allowSubItems && editable && (
-                                                            <div className="join">
+                                                        <div className="join">
+                                                            {allowSubItems && editable && (
                                                                 <button
                                                                     type="button"
                                                                     className="btn btn-xs btn-ghost join-item"
@@ -485,25 +493,26 @@ export default function ReadonlyGroupMatrix({
                                                                 >
                                                                     + Sous-item
                                                                 </button>
-                                                            </div>
-                                                        )}
-                                                        {editable && (
-                                                            <div className="join">
-                                                                <button className="btn btn-xs join-item" onClick={() => moveAct(a.id, 'up')}>▲</button>
-                                                                <button className="btn btn-xs join-item" onClick={() => moveAct(a.id, 'down')}>▼</button>
-                                                            </div>
-                                                        )}
+                                                            )}
+                                                            {editable && (
+                                                                <>
+                                                                    <button className="btn btn-xs join-item" onClick={() => moveAct(a.id, 'up')}>▲</button>
+                                                                    <button className="btn btn-xs join-item" onClick={() => moveAct(a.id, 'down')}>▼</button>
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </td>
 
-                                                {valueColumns.map((col) =>
-                                                    renderCell({
-                                                        key: `${a.id}-${col.key}`,
-                                                        act: a,
-                                                        level: col.level,
-                                                        columnKind: col.kind,
-                                                    })
-                                                )}
+                                        {valueColumns.map((col) =>
+                                            renderCell({
+                                                key: `${a.id}-${col.key}`,
+                                                act: a,
+                                                level: col.level,
+                                                columnKind: col.kind,
+                                                optionLevelId: col.optionLevelId,
+                                            })
+                                        )}
                                             </tr>
 
                                             {subRows.map((sub) => (
@@ -541,6 +550,7 @@ export default function ReadonlyGroupMatrix({
                                                             act: {...a, id: sub.id, libelle: sub.libelle, isSubItem: true},
                                                             level: col.level,
                                                             columnKind: col.kind,
+                                                            optionLevelId: col.optionLevelId,
                                                         })
                                                     )}
                                                 </tr>

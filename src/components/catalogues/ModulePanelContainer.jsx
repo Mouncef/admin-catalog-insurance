@@ -251,7 +251,8 @@ export default function ModulePanelContainer({
     const [actPickerFor, setActPickerFor] = useState(null);
     const [tarifEditorGroupId, setTarifEditorGroupId] = useState(null);
     const [subItemModal, setSubItemModal] = useState(null); // { groupId, parentAct, subItem? }
-    const [labelModal, setLabelModal] = useState(null); // { groupId, category, name, selectedActs, acts }
+    const [labelModal, setLabelModal] = useState(null); // { groupId, category, labelId, name, selectedActs, acts }
+    const [typeModal, setTypeModal] = useState(null); // { groupId, value }
 
     const allowSubItems = false;
 
@@ -483,6 +484,31 @@ export default function ModulePanelContainer({
         setLabelModal(null);
     }
 
+    function openTypeModal(group) {
+        if (moduleRisk !== 'prevoyance' || !group?.id) return;
+        setTypeModal({
+            groupId: group.id,
+            name: group.nom || '',
+            value: group.selection_type === 'checkbox' ? 'checkbox' : 'radio',
+        });
+    }
+
+    function closeTypeModal() {
+        setTypeModal(null);
+    }
+
+    function saveGroupType(value) {
+        if (!typeModal?.groupId) return;
+        const selection = value || typeModal.value || 'radio';
+        setGroupes((prev) =>
+            (prev || []).map((g) =>
+                g.id === typeModal.groupId ? {...g, selection_type: selection} : g
+            )
+        );
+        setTypeModal(null);
+        showToast('success', 'Type de groupe mis à jour');
+    }
+
 
     // ===== helpers ordre
     function nextOrderForModule(list = myGroups) {
@@ -546,6 +572,7 @@ export default function ModulePanelContainer({
                 .sort((a, b) => (a.ordre || 0) - (b.ordre || 0) || a.code.localeCompare(b.code))
                 .map((c) => c.id),
             category_groups: groupe.category_groups || {},
+            selection_type: groupe.selection_type === 'checkbox' ? 'checkbox' : 'radio',
         };
         setGroupes([...(groupes || []), payload]);
 
@@ -575,7 +602,8 @@ export default function ModulePanelContainer({
                     ...g,
                     nom: String(groupe.nom || '').trim(),
                     priorite: Number(groupe.priorite) || 100,
-                    category_groups: groupe.category_groups || {}
+                    category_groups: groupe.category_groups || {},
+                    selection_type: g.selection_type || 'radio',
                 } : g
             )
         );
@@ -878,7 +906,7 @@ export default function ModulePanelContainer({
                 const subItems = Array.isArray(g.sub_items)
                     ? g.sub_items.filter((si) => si.parent_act_id && si.libelle)
                     : [];
-                const isPrevModule = normalizeRisk(module?.risque) === 'prevoyance';
+                const isPrevModule = moduleRisk === 'prevoyance';
                 const categoryGroups = isPrevModule && g.category_groups ? g.category_groups : null;
                 const canManageLabels = isPrevModule && !locked;
                 const subItemsByParent = new Map();
@@ -890,7 +918,23 @@ export default function ModulePanelContainer({
                     <div key={g.id} className="card bg-base-100 shadow-md relative group">
                         <div className="card-body p-4">
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="text-lg font-semibold">Groupe : {g.nom}</div>
+                                <div className="flex items-center gap-2">
+                                    <div className="text-lg font-semibold">Groupe : {g.nom}</div>
+                                    {moduleRisk === 'prevoyance' && (
+                                        <>
+                                            <span className="badge badge-outline">
+                                                {g.selection_type === 'checkbox' ? 'CheckBox' : 'Bouton radio'}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                className="btn btn-xs btn-secondary"
+                                                onClick={() => openTypeModal(g)}
+                                            >
+                                                Type
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                                 {/*<div className="badge">Priorité {g.priorite}</div>*/}
                                 <div className="ml-auto join">
 
@@ -1010,6 +1054,47 @@ export default function ModulePanelContainer({
                     })}
                     onClose={closeSubItemModal}
                 />
+            )}
+
+            {moduleRisk === 'prevoyance' && typeModal && (
+                <div className="modal modal-open">
+                    <div className="modal-box max-w-2xl">
+                        <h3 className="font-bold text-lg">
+                            Type du groupe — {typeModal.name || 'Sans titre'}
+                        </h3>
+                        <div className="space-y-3 mt-4">
+                            <div className="border border-base-200 rounded-box p-4">
+                                <div className="flex flex-col gap-2 text-sm">
+                                    <label className="flex items-center gap-2">
+                                        <input
+                                            type="radio"
+                                            className="radio radio-sm"
+                                            name="grp-type-choice"
+                                            checked={typeModal.value !== 'checkbox'}
+                                            onChange={() => setTypeModal((prev) => prev ? ({...prev, value: 'radio'}) : prev)}
+                                        />
+                                        Bouton radio (sélection unique)
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                        <input
+                                            type="radio"
+                                            className="radio radio-sm"
+                                            name="grp-type-choice"
+                                            checked={typeModal.value === 'checkbox'}
+                                            onChange={() => setTypeModal((prev) => prev ? ({...prev, value: 'checkbox'}) : prev)}
+                                        />
+                                        CheckBox (sélections multiples)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="modal-action">
+                            <button className="btn" onClick={closeTypeModal}>Annuler</button>
+                            <button className="btn btn-primary" onClick={() => saveGroupType(typeModal.value)}>Enregistrer</button>
+                        </div>
+                    </div>
+                    <button className="modal-backdrop" aria-label="Fermer" onClick={closeTypeModal}/>
+                </div>
             )}
 
             {labelModal && (

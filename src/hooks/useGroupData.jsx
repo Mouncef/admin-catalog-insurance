@@ -55,6 +55,7 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
                 if (cleaned.length > 0) categoryGroups[catId] = cleaned;
             }
         }
+        const selectionType = raw.selection_type === 'checkbox' ? 'checkbox' : 'radio';
         const g = {
             id: raw.id || uuid(),
             catalogue_id: raw.catalogue_id,
@@ -66,6 +67,7 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
             ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : null,
             sub_items: subItems,
             category_groups: categoryGroups,
+            selection_type: selectionType,
         };
         if (!g.catalogue_id || !catalogueMap?.has(g.catalogue_id)) continue;
         if (!g.ref_module_id || !moduleMap?.has(g.ref_module_id)) continue;

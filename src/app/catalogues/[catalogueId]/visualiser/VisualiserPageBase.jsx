@@ -164,8 +164,15 @@ function ViewerModulePanel({
                         <div key={g.id} className="card bg-base-200/40 shadow-sm mb-4">
                             <div className="card-body p-4">
                                 <div className="flex items-center gap-3 mb-2">
-                                    <div className="text-base sm:text-lg font-semibold">
-                                        Groupe : {g.nom}
+                                    <div className="flex items-center gap-2">
+                                        <div className="text-base sm:text-lg font-semibold">
+                                            Groupe : {g.nom}
+                                        </div>
+                                        {moduleRisk === 'prevoyance' && (
+                                            <span className="badge badge-outline">
+                                                {g.selection_type === 'checkbox' ? 'CheckBox' : 'Bouton radio'}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 

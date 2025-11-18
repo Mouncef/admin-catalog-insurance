@@ -390,6 +390,7 @@ export default function ValueEditor({
                                         dependencyOptions = [],
                                         dependencyLevelOptions = [],
                                         defaultLevelId = null,
+                                        allowDependencies = true,
                                     }) {
     const {refValueTypes} = useRefValueTypes()
     const resolvedTypes = useMemo(() => {
@@ -411,9 +412,9 @@ export default function ValueEditor({
         onChange?.(next)
     }
 
-    const dependencyEnabled = !!normalizedValue.depends_on
+    const dependencyEnabled = allowDependencies && !!normalizedValue.depends_on
 
-    const effectiveDependencyOptions = dependencyOptions.length
+    const effectiveDependencyOptions = allowDependencies && dependencyOptions.length
         ? dependencyOptions
         : (dependencyEnabled && normalizedValue.depends_on?.act_id
             ? [{value: normalizedValue.depends_on.act_id, label: normalizedValue.depends_on.act_id}]
@@ -429,6 +430,7 @@ export default function ValueEditor({
         ? dependencyLevelOptions
         : [{value: defaultNiveauId || '', label: 'Niveau courant'}];
     const dependencyMode = normalizedValue.depends_on?.mode || 'copy';
+    const dependencySectionVisible = allowDependencies && (dependencyOptions.length > 0 || dependencyEnabled);
 
     const setDependency = (dep) => {
         onChange?.({...normalizedValue, depends_on: dep});
@@ -537,7 +539,7 @@ export default function ValueEditor({
         <div className="border border-base-300 rounded-box p-3 space-y-4">
             {title && <div className="text-lg font-semibold">{title}</div>}
 
-            {(dependencyOptions.length > 0 || dependencyEnabled) && (
+            {dependencySectionVisible && (
                 <div className="space-y-3">
                     <label className="label cursor-pointer justify-start gap-3">
                         <input

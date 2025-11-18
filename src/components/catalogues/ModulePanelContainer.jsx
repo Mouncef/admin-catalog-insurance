@@ -923,9 +923,7 @@ export default function ModulePanelContainer({
                                     <div className="text-lg font-semibold">Groupe : {g.nom}</div>
                                     {moduleRisk === 'prevoyance' && (
                                         <>
-                                            <span className="badge badge-outline">
-                                                {g.selection_type === 'checkbox' ? 'CheckBox' : 'Bouton radio'}
-                                            </span>
+
                                             <button
                                                 type="button"
                                                 className="btn btn-xs btn-secondary"
@@ -933,6 +931,9 @@ export default function ModulePanelContainer({
                                             >
                                                 Type
                                             </button>
+                                            <span className="badge badge-outline">
+                                                {g.selection_type === 'checkbox' ? 'Sélection multiple' : 'Sélection unique'}
+                                            </span>
                                         </>
                                     )}
                                 </div>
@@ -1074,7 +1075,7 @@ export default function ModulePanelContainer({
                                             checked={typeModal.value !== 'checkbox'}
                                             onChange={() => setTypeModal((prev) => prev ? ({...prev, value: 'radio'}) : prev)}
                                         />
-                                        Bouton radio (sélection unique)
+                                        Sélection unique (Bouton radio)
                                     </label>
                                     <label className="flex items-center gap-2">
                                         <input
@@ -1084,7 +1085,7 @@ export default function ModulePanelContainer({
                                             checked={typeModal.value === 'checkbox'}
                                             onChange={() => setTypeModal((prev) => prev ? ({...prev, value: 'checkbox'}) : prev)}
                                         />
-                                        CheckBox (sélections multiples)
+                                        Sélections multiples (Checkbox)
                                     </label>
                                 </div>
                             </div>

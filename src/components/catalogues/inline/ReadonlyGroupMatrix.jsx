@@ -4,6 +4,7 @@ import {Fragment, useEffect, useMemo, useState} from 'react';
 import ValueEditorTyped from '@/components/catalogues/inline/ValueEditorTyped';
 import {coerceCellValue} from '@/lib/utils/CatalogueInline';
 import {isUngroupedCategoryId} from "@/lib/utils/categoryUtils";
+import {normalizeRisk} from '@/lib/utils/StringUtil';
 
 const DEP_OPERATOR_SYMBOL = {
     add: '+',
@@ -951,6 +952,7 @@ export default function ReadonlyGroupMatrix({
                             dependencyOptions={dependencyActOptions.filter((opt) => opt.value !== editing.actId)}
                             dependencyLevelOptions={dependencyLevelOptions}
                             defaultLevelId={editing.nivId}
+                            allowDependencies={normalizeRisk(module?.risque) === 'prevoyance'}
                         />
                         <div className="modal-action">
                             <button type="button" className="btn" onClick={cancelEdit}>Annuler</button>

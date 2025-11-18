@@ -343,21 +343,73 @@ export default function ModulePanelContainer({
         showToast('info', 'Sous-item supprimé');
     }
 
-    function openCategoryLabelModal(group, category) {
-        if (!group?.id || !category?.id) return;
+    function getAvailableActsForCategory(group, category, keepActIds = []) {
+        if (!group?.id || !category?.id) return [];
+        const keepSet = new Set(keepActIds || []);
         const memberIds = new Set((membres || []).filter((m) => m.groupe_id === group.id).map((m) => m.act_id));
-        const acts = (actsByCategory.get(category.id) || []).filter((act) => memberIds.has(act.id));
-        if (acts.length === 0) {
-            showToast('info', "Aucune garantie de ce groupe n'appartient à cette catégorie.");
+        const actsInCategory = (actsByCategory.get(category.id) || []).filter((act) => memberIds.has(act.id));
+        const entries = Array.isArray(group.category_groups?.[category.id]) ? group.category_groups[category.id] : [];
+        const usedActIds = new Set();
+        for (const entry of entries) {
+            if (!Array.isArray(entry?.actIds)) continue;
+            for (const actId of entry.actIds) {
+                if (!keepSet.has(actId)) usedActIds.add(actId);
+            }
+        }
+        return actsInCategory.filter((act) => !usedActIds.has(act.id));
+    }
+
+    function openCategoryLabelModal(group, category) {
+        const availableActs = getAvailableActsForCategory(group, category, []);
+        if (availableActs.length === 0) {
+            showToast('info', "Toutes les garanties de cette catégorie sont déjà regroupées.");
             return;
         }
         setLabelModal({
             groupId: group.id,
             category,
+            labelId: null,
             name: '',
-            selectedActs: acts.map((a) => a.id),
-            acts,
+            selectedActs: [],
+            acts: availableActs,
         });
+    }
+
+    function openEditCategoryLabel(group, category, label) {
+        const keepIds = Array.isArray(label?.actIds) ? label.actIds : [];
+        const availableActs = getAvailableActsForCategory(group, category, keepIds);
+        if (availableActs.length === 0) {
+            showToast('info', "Aucune garantie disponible pour modifier ce regroupement.");
+            return;
+        }
+        setLabelModal({
+            groupId: group.id,
+            category,
+            labelId: label.id,
+            name: label.libelle || '',
+            selectedActs: keepIds.slice(),
+            acts: availableActs,
+        });
+    }
+
+    function deleteCategoryLabel(group, category, label) {
+        const labelId = label?.id;
+        if (!group?.id || !category?.id || !labelId) return;
+        if (typeof window !== 'undefined') {
+            const ok = window.confirm(`Supprimer le regroupement "${label?.libelle || ''}" ? Les garanties redeviennent disponibles.`);
+            if (!ok) return;
+        }
+        setGroupes((prev) =>
+            (prev || []).map((g) => {
+                if (g.id !== group.id) return g;
+                const current = {...(g.category_groups || {})};
+                const arr = Array.isArray(current[category.id]) ? current[category.id].filter((lbl) => lbl.id !== labelId) : [];
+                if (arr.length > 0) current[category.id] = arr;
+                else delete current[category.id];
+                return {...g, category_groups: current};
+            })
+        );
+        showToast('info', 'Regroupement supprimé');
     }
 
     function closeCategoryLabelModal() {
@@ -386,26 +438,48 @@ export default function ModulePanelContainer({
             showToast('error', 'Sélectionnez au moins une garantie.');
             return;
         }
+        const catId = labelModal.category?.id;
+        if (!catId) {
+            showToast('error', 'Catégorie inconnue.');
+            return;
+        }
         setGroupes((prev) =>
             (prev || []).map((g) => {
                 if (g.id !== labelModal.groupId) return g;
                 const currentGroups = g.category_groups || {};
-                const list = Array.isArray(currentGroups[labelModal.category.id]) ? currentGroups[labelModal.category.id].slice() : [];
-                list.push({
-                    id: uuid(),
-                    libelle,
-                    actIds: labelModal.selectedActs.slice(),
-                });
+                const list = Array.isArray(currentGroups[catId]) ? currentGroups[catId].slice() : [];
+                if (labelModal.labelId) {
+                    const idx = list.findIndex((lbl) => lbl.id === labelModal.labelId);
+                    if (idx >= 0) {
+                        list[idx] = {
+                            ...list[idx],
+                            libelle,
+                            actIds: labelModal.selectedActs.slice(),
+                        };
+                    } else {
+                        list.push({
+                            id: labelModal.labelId,
+                            libelle,
+                            actIds: labelModal.selectedActs.slice(),
+                        });
+                    }
+                } else {
+                    list.push({
+                        id: uuid(),
+                        libelle,
+                        actIds: labelModal.selectedActs.slice(),
+                    });
+                }
                 return {
                     ...g,
                     category_groups: {
                         ...currentGroups,
-                        [labelModal.category.id]: list,
+                        [catId]: list,
                     },
                 };
             })
         );
-        showToast('success', 'Regroupement créé');
+        showToast('success', labelModal.labelId ? 'Regroupement mis à jour' : 'Regroupement créé');
         setLabelModal(null);
     }
 
@@ -804,7 +878,9 @@ export default function ModulePanelContainer({
                 const subItems = Array.isArray(g.sub_items)
                     ? g.sub_items.filter((si) => si.parent_act_id && si.libelle)
                     : [];
-                const categoryGroups = normalizeRisk(module?.risque) === 'prevoyance' && g.category_groups ? g.category_groups : null;
+                const isPrevModule = normalizeRisk(module?.risque) === 'prevoyance';
+                const categoryGroups = isPrevModule && g.category_groups ? g.category_groups : null;
+                const canManageLabels = isPrevModule && !locked;
                 const subItemsByParent = new Map();
                 for (const si of subItems) {
                     if (!subItemsByParent.has(si.parent_act_id)) subItemsByParent.set(si.parent_act_id, []);
@@ -895,9 +971,11 @@ export default function ModulePanelContainer({
                                 categoriesByModule={categoriesByModule}
                                 actsByCategory={actsByCategory}
                                 categoryGroups={categoryGroups}
+                                onAddCategoryLabel={canManageLabels ? (cat) => openCategoryLabelModal(g, cat) : undefined}
+                                onEditCategoryLabel={canManageLabels ? (cat, label) => openEditCategoryLabel(g, cat, label) : undefined}
+                                onDeleteCategoryLabel={canManageLabels ? (cat, label) => deleteCategoryLabel(g, cat, label) : undefined}
                                 membres={membres}
                                 gvaleurs={gvaleurs}
-                                onAddCategoryLabel={moduleRisk === 'prevoyance' && !locked ? (cat) => openCategoryLabelModal(g, cat) : undefined}
                                 onSave={(payload) => saveGrid(g, payload)}
                                 onCancel={() => setLocked(g.id, true)}
                             />
@@ -938,7 +1016,7 @@ export default function ModulePanelContainer({
                 <div className="modal modal-open">
                     <div className="modal-box max-w-2xl">
                         <h3 className="font-bold text-lg">
-                            Nouveau regroupement — {labelModal.category?.libelle || 'Sans groupe'}
+                            {labelModal.labelId ? 'Modifier le regroupement' : 'Nouveau regroupement'} — {labelModal.category?.libelle || 'Sans groupe'}
                         </h3>
                         <div className="space-y-4 mt-4">
                             <label className="floating-label">

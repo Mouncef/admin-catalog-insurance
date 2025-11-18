@@ -8,6 +8,7 @@ export function uuid() {
 }
 
 const safeLS = typeof window !== 'undefined' ? window.localStorage : null;
+const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const lsGet = (k, fallback = []) => {
     if (!safeLS) return fallback;
     try { const raw = safeLS.getItem(k); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
@@ -35,6 +36,25 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
                 })
                 .filter((si) => !!si)
             : [];
+        const categoryGroups = {};
+        if (isPlainObject(raw.category_groups)) {
+            for (const [catId, entries] of Object.entries(raw.category_groups)) {
+                if (!Array.isArray(entries)) continue;
+                const cleaned = entries
+                    .map((entry) => {
+                        const libelle = String(entry?.libelle || '').trim();
+                        const actIds = Array.isArray(entry?.actIds) ? entry.actIds.filter((id) => !!id) : [];
+                        if (!libelle || actIds.length === 0) return null;
+                        return {
+                            id: entry.id || uuid(),
+                            libelle,
+                            actIds,
+                        };
+                    })
+                    .filter(Boolean);
+                if (cleaned.length > 0) categoryGroups[catId] = cleaned;
+            }
+        }
         const g = {
             id: raw.id || uuid(),
             catalogue_id: raw.catalogue_id,
@@ -45,6 +65,7 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
             // 🔑 NOUVEAU : ordre (peut être null → fallback tri)
             ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : null,
             sub_items: subItems,
+            category_groups: categoryGroups,
         };
         if (!g.catalogue_id || !catalogueMap?.has(g.catalogue_id)) continue;
         if (!g.ref_module_id || !moduleMap?.has(g.ref_module_id)) continue;

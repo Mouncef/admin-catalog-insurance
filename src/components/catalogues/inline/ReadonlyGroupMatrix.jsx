@@ -48,6 +48,8 @@ export default function ReadonlyGroupMatrix({
                                                 onSave,
                                                 onCancel,
                                                 onAddCategoryLabel,
+                                                onEditCategoryLabel,
+                                                onDeleteCategoryLabel,
                                             }) {
     const sortLevels = (list = []) =>
         list
@@ -462,6 +464,124 @@ export default function ReadonlyGroupMatrix({
 
                         const canAddLabel = typeof onAddCategoryLabel === 'function' && editable;
                         const catLabels = Array.isArray(categoryGroups?.[cat.id]) ? categoryGroups[cat.id] : [];
+                        const labelBuckets = catLabels
+                            .map((label) => ({
+                                label,
+                                acts: acts.filter(
+                                    (act) => Array.isArray(label.actIds) && label.actIds.includes(act.id)
+                                ),
+                            }))
+                            .filter((bucket) => bucket.acts.length > 0);
+                        const labeledSet = new Set(
+                            labelBuckets.flatMap((bucket) => bucket.acts.map((act) => act.id))
+                        );
+                        const freeActs = acts.filter((act) => !labeledSet.has(act.id));
+
+                        const renderActRow = (act, options = {}) => {
+                            const subRows = subItemsMap?.get(act.id) || [];
+                            const indent = options.indent ? 'pl-6' : '';
+                            return (
+                                <Fragment key={`${act.id}-${indent || 'root'}`}>
+                                    <tr>
+                                        <td className={`table-pin-cols ${group?.nom === 'Sans groupe' ? 'py-1' : ''} ${indent}`}>
+                                            <div
+                                                className={`flex items-center gap-2 w-full ${group?.nom === 'Sans groupe' ? 'min-h-0' : ''}`}>
+                                                <div
+                                                    className={`flex-1 min-w-0 ${group?.nom === 'Sans groupe' ? 'text-xs' : ''}`}>
+                                                    <div className="opacity-70 truncate">{act.libelle || '—'}</div>
+                                                </div>
+                                                <div className="join">
+                                                    {allowSubItems && editable && (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-xs btn-ghost join-item"
+                                                            onClick={() => onAddSubItem?.({act})}
+                                                            title="Ajouter un sous-item"
+                                                        >
+                                                            + Sous-item
+                                                        </button>
+                                                    )}
+                                                    {editable && (
+                                                        <>
+                                                            <button className="btn btn-xs join-item"
+                                                                    onClick={() => moveAct(act.id, 'up')}>▲
+                                                            </button>
+                                                            <button className="btn btn-xs join-item"
+                                                                    onClick={() => moveAct(act.id, 'down')}>▼
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        {valueColumns.map((col) =>
+                                            renderCell({
+                                                key: `${act.id}-${col.key}`,
+                                                act,
+                                                level: col.level,
+                                                columnKind: col.kind,
+                                                optionLevelId: col.optionLevelId,
+                                            })
+                                        )}
+                                    </tr>
+
+                                    {subRows.map((sub) => (
+                                        <tr key={sub.id}>
+                                            <td className={`table-pin-cols pl-8 ${indent ? 'pl-10' : ''}`}>
+                                                <div className="flex items-center gap-2 w-full">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-xs opacity-70 truncate">{sub.libelle}</div>
+                                                        {sub.description && (
+                                                            <div className="text-[11px] opacity-60">{sub.description}</div>
+                                                        )}
+                                                    </div>
+                                                    {allowSubItems && editable && (
+                                                        <div className="join">
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-xs btn-ghost join-item"
+                                                                onClick={() =>
+                                                                    onAddSubItem?.({
+                                                                        act,
+                                                                        subItem: sub,
+                                                                    })
+                                                                }
+                                                                title="Modifier ce sous-item"
+                                                            >
+                                                                Modifier
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-xs btn-ghost text-error join-item"
+                                                                onClick={() => onRemoveSubItem?.(sub.id)}
+                                                                title="Supprimer ce sous-item"
+                                                            >
+                                                                Supprimer
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            {valueColumns.map((col) =>
+                                                renderCell({
+                                                    key: `${sub.id}-${col.key}`,
+                                                    act: {
+                                                        ...act,
+                                                        id: sub.id,
+                                                        libelle: sub.libelle,
+                                                        isSubItem: true,
+                                                    },
+                                                    level: col.level,
+                                                    columnKind: col.kind,
+                                                    optionLevelId: col.optionLevelId,
+                                                })
+                                            )}
+                                        </tr>
+                                    ))}
+                                </Fragment>
+                            );
+                        };
                         return (
                             <Fragment key={cat.id}>
                                 {!(cat?.libelle === 'Sans groupe' && (cat.isVirtual || isUngroupedCategoryId(cat.id))) ? (
@@ -539,133 +659,46 @@ export default function ReadonlyGroupMatrix({
                                     </tr>
                                 )}
 
-                                {catLabels.length > 0 && (
-                                    <tr className="bg-base-100">
-                                        <td colSpan={colDefs.length}>
-                                            <div className="flex flex-wrap gap-2">
-                                                {catLabels.map((label) => (
-                                                    <div key={label.id} className="border border-base-200 rounded-box px-2 py-1 text-xs">
-                                                        <div className="font-semibold">{label.libelle}</div>
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            {(label.actIds || []).map((actId) => {
-                                                                const act = actsRaw.find((item) => item.id === actId);
-                                                                if (!act) return null;
-                                                                return (
-                                                                    <span key={actId} className="badge badge-outline badge-sm">
-                                                                        {act.libelle || act.code || actId}
-                                                                    </span>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
-
-                                {acts.map((a) => {
-
-                                    const subRows = subItemsMap?.get(a.id) || [];
-                                    return (
-                                        <Fragment key={a.id}>
-                                            <tr>
-                                                <td className={`table-pin-cols ${group?.nom === 'Sans groupe' ? 'py-1' : ''}`}>
-                                                    <div
-                                                        className={`flex items-center gap-2 w-full ${group?.nom === 'Sans groupe' ? 'min-h-0' : ''}`}>
-                                                        <div
-                                                            className={`flex-1 min-w-0 ${group?.nom === 'Sans groupe' ? 'text-xs' : ''}`}>
-                                                            <div
-                                                                className="opacity-70 truncate">{a.libelle || '—'}</div>
-                                                        </div>
-                                                        <div className="join">
-                                                            {allowSubItems && editable && (
+                                {labelBuckets.map((bucket) => (
+                                    <Fragment key={bucket.label.id}>
+                                        <tr className="bg-base-100">
+                                            <td colSpan={colDefs.length}>
+                                                <div className="font-semibold text-sm flex items-center gap-2">
+                                                    <span>Regroupement :</span>
+                                                    <span>{bucket.label.libelle}</span>
+                                                    <span className="badge badge-sm">
+                                                        {bucket.acts.length} garantie{bucket.acts.length > 1 ? 's' : ''}
+                                                    </span>
+                                                    {editable && (onEditCategoryLabel || onDeleteCategoryLabel) && (
+                                                        <div className="ml-auto join">
+                                                            {onEditCategoryLabel && (
                                                                 <button
                                                                     type="button"
-                                                                    className="btn btn-xs btn-ghost join-item"
-                                                                    onClick={() => onAddSubItem?.({act: a})}
-                                                                    title="Ajouter un sous-item"
+                                                                    className="btn btn-xs join-item"
+                                                                    onClick={() => onEditCategoryLabel?.(cat, bucket.label)}
                                                                 >
-                                                                    + Sous-item
+                                                                    ✎ Modifier
                                                                 </button>
                                                             )}
-                                                            {editable && (
-                                                                <>
-                                                                    <button className="btn btn-xs join-item"
-                                                                            onClick={() => moveAct(a.id, 'up')}>▲
-                                                                    </button>
-                                                                    <button className="btn btn-xs join-item"
-                                                                            onClick={() => moveAct(a.id, 'down')}>▼
-                                                                    </button>
-                                                                </>
+                                                            {onDeleteCategoryLabel && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-xs btn-error join-item"
+                                                                    onClick={() => onDeleteCategoryLabel?.(cat, bucket.label)}
+                                                                >
+                                                                    Supprimer
+                                                                </button>
                                                             )}
                                                         </div>
-                                                    </div>
-                                                </td>
-
-                                                {valueColumns.map((col) =>
-                                                    renderCell({
-                                                        key: `${a.id}-${col.key}`,
-                                                        act: a,
-                                                        level: col.level,
-                                                        columnKind: col.kind,
-                                                        optionLevelId: col.optionLevelId,
-                                                    })
-                                                )}
-                                            </tr>
-
-                                            {subRows.map((sub) => (
-                                                <tr key={sub.id}>
-                                                    <td className="table-pin-cols pl-8">
-                                                        <div className="flex items-center gap-2 w-full">
-                                                            <div className="flex-1 min-w-0">
-                                                                <div
-                                                                    className="opacity-70 truncate">↳ {sub.libelle}</div>
-                                                            </div>
-                                                            {allowSubItems && editable && (
-                                                                <div className="join">
-                                                                    <button
-                                                                        type="button"
-                                                                        className="btn btn-xs btn-ghost join-item"
-                                                                        onClick={() => onAddSubItem?.({
-                                                                            act: a,
-                                                                            subItem: sub
-                                                                        })}
-                                                                        title="Modifier ce sous-item"
-                                                                    >
-                                                                        Modifier
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="btn btn-xs btn-ghost text-error join-item"
-                                                                        onClick={() => onRemoveSubItem?.(sub.id)}
-                                                                        title="Supprimer ce sous-item"
-                                                                    >
-                                                                        Supprimer
-                                                                    </button>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    {valueColumns.map((col) =>
-                                                        renderCell({
-                                                            key: `${sub.id}-${col.key}`,
-                                                            act: {
-                                                                ...a,
-                                                                id: sub.id,
-                                                                libelle: sub.libelle,
-                                                                isSubItem: true
-                                                            },
-                                                            level: col.level,
-                                                            columnKind: col.kind,
-                                                            optionLevelId: col.optionLevelId,
-                                                        })
                                                     )}
-                                                </tr>
-                                            ))}
-                                        </Fragment>
-                                    );
-                                })}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {bucket.acts.map((act) => renderActRow(act, {indent: true}))}
+                                    </Fragment>
+                                ))}
+
+                                {freeActs.map((act) => renderActRow(act))}
                             </Fragment>
                         );
                     })}

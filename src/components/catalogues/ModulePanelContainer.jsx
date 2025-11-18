@@ -251,8 +251,9 @@ export default function ModulePanelContainer({
     const [actPickerFor, setActPickerFor] = useState(null);
     const [tarifEditorGroupId, setTarifEditorGroupId] = useState(null);
     const [subItemModal, setSubItemModal] = useState(null); // { groupId, parentAct, subItem? }
+    const [labelModal, setLabelModal] = useState(null); // { groupId, category, name, selectedActs, acts }
 
-    const allowSubItems = moduleRisk === 'prevoyance';
+    const allowSubItems = false;
 
     useEffect(() => {
         if (tarifEditorGroupId && (!allowTarifEditor || !myGroups.some((g) => g.id === tarifEditorGroupId))) {
@@ -342,6 +343,72 @@ export default function ModulePanelContainer({
         showToast('info', 'Sous-item supprimé');
     }
 
+    function openCategoryLabelModal(group, category) {
+        if (!group?.id || !category?.id) return;
+        const memberIds = new Set((membres || []).filter((m) => m.groupe_id === group.id).map((m) => m.act_id));
+        const acts = (actsByCategory.get(category.id) || []).filter((act) => memberIds.has(act.id));
+        if (acts.length === 0) {
+            showToast('info', "Aucune garantie de ce groupe n'appartient à cette catégorie.");
+            return;
+        }
+        setLabelModal({
+            groupId: group.id,
+            category,
+            name: '',
+            selectedActs: acts.map((a) => a.id),
+            acts,
+        });
+    }
+
+    function closeCategoryLabelModal() {
+        setLabelModal(null);
+    }
+
+    function toggleCategoryLabelAct(actId) {
+        setLabelModal((prev) => {
+            if (!prev) return prev;
+            const exists = prev.selectedActs.includes(actId);
+            return {
+                ...prev,
+                selectedActs: exists ? prev.selectedActs.filter((id) => id !== actId) : [...prev.selectedActs, actId],
+            };
+        });
+    }
+
+    function saveCategoryLabelModal() {
+        if (!labelModal) return;
+        const libelle = String(labelModal.name || '').trim();
+        if (!libelle) {
+            showToast('error', 'Libellé requis.');
+            return;
+        }
+        if (!labelModal.selectedActs || labelModal.selectedActs.length === 0) {
+            showToast('error', 'Sélectionnez au moins une garantie.');
+            return;
+        }
+        setGroupes((prev) =>
+            (prev || []).map((g) => {
+                if (g.id !== labelModal.groupId) return g;
+                const currentGroups = g.category_groups || {};
+                const list = Array.isArray(currentGroups[labelModal.category.id]) ? currentGroups[labelModal.category.id].slice() : [];
+                list.push({
+                    id: uuid(),
+                    libelle,
+                    actIds: labelModal.selectedActs.slice(),
+                });
+                return {
+                    ...g,
+                    category_groups: {
+                        ...currentGroups,
+                        [labelModal.category.id]: list,
+                    },
+                };
+            })
+        );
+        showToast('success', 'Regroupement créé');
+        setLabelModal(null);
+    }
+
 
     // ===== helpers ordre
     function nextOrderForModule(list = myGroups) {
@@ -404,6 +471,7 @@ export default function ModulePanelContainer({
                 .slice()
                 .sort((a, b) => (a.ordre || 0) - (b.ordre || 0) || a.code.localeCompare(b.code))
                 .map((c) => c.id),
+            category_groups: groupe.category_groups || {},
         };
         setGroupes([...(groupes || []), payload]);
 
@@ -432,7 +500,8 @@ export default function ModulePanelContainer({
                 g.id === gid ? {
                     ...g,
                     nom: String(groupe.nom || '').trim(),
-                    priorite: Number(groupe.priorite) || 100
+                    priorite: Number(groupe.priorite) || 100,
+                    category_groups: groupe.category_groups || {}
                 } : g
             )
         );
@@ -735,6 +804,7 @@ export default function ModulePanelContainer({
                 const subItems = Array.isArray(g.sub_items)
                     ? g.sub_items.filter((si) => si.parent_act_id && si.libelle)
                     : [];
+                const categoryGroups = normalizeRisk(module?.risque) === 'prevoyance' && g.category_groups ? g.category_groups : null;
                 const subItemsByParent = new Map();
                 for (const si of subItems) {
                     if (!subItemsByParent.has(si.parent_act_id)) subItemsByParent.set(si.parent_act_id, []);
@@ -824,8 +894,10 @@ export default function ModulePanelContainer({
                                 onRemoveSubItem={allowSubItems ? (subId) => removeSubItem(g.id, subId) : undefined}
                                 categoriesByModule={categoriesByModule}
                                 actsByCategory={actsByCategory}
+                                categoryGroups={categoryGroups}
                                 membres={membres}
                                 gvaleurs={gvaleurs}
+                                onAddCategoryLabel={moduleRisk === 'prevoyance' && !locked ? (cat) => openCategoryLabelModal(g, cat) : undefined}
                                 onSave={(payload) => saveGrid(g, payload)}
                                 onCancel={() => setLocked(g.id, true)}
                             />
@@ -860,6 +932,67 @@ export default function ModulePanelContainer({
                     })}
                     onClose={closeSubItemModal}
                 />
+            )}
+
+            {labelModal && (
+                <div className="modal modal-open">
+                    <div className="modal-box max-w-2xl">
+                        <h3 className="font-bold text-lg">
+                            Nouveau regroupement — {labelModal.category?.libelle || 'Sans groupe'}
+                        </h3>
+                        <div className="space-y-4 mt-4">
+                            <label className="floating-label">
+                                <span>Libellé du regroupement</span>
+                                <input
+                                    className="input input-bordered w-full"
+                                    value={labelModal.name}
+                                    onChange={(e) =>
+                                        setLabelModal((prev) => prev ? ({ ...prev, name: e.target.value }) : prev)
+                                    }
+                                    placeholder="Ex: Actes principaux"
+                                />
+                            </label>
+                            <div>
+                                <div className="font-semibold text-sm mb-2">Garanties à inclure</div>
+                                {labelModal.acts?.length ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-auto pr-1">
+                                        {labelModal.acts.map((act) => {
+                                            const checked = labelModal.selectedActs.includes(act.id);
+                                            return (
+                                                <label key={act.id} className={`flex items-center gap-2 p-2 rounded-box border ${checked ? 'border-primary' : 'border-base-300'}`}>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="checkbox checkbox-sm"
+                                                        checked={checked}
+                                                        onChange={() => toggleCategoryLabelAct(act.id)}
+                                                    />
+                                                    <div className="min-w-0">
+                                                        <div className="text-xs opacity-70 truncate">{act.libelle || act.code || act.id}</div>
+                                                    </div>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="alert alert-info">
+                                        Aucune garantie de cette catégorie n’est présente dans le groupe.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="modal-action">
+                            <button className="btn" onClick={closeCategoryLabelModal}>Annuler</button>
+                            <button
+                                className="btn btn-primary"
+                                disabled={!labelModal.name.trim() || !labelModal.selectedActs.length}
+                                onClick={saveCategoryLabelModal}
+                            >
+                                Ajouter
+                            </button>
+                        </div>
+                    </div>
+                    <button className="modal-backdrop" aria-label="Fermer" onClick={closeCategoryLabelModal}/>
+                </div>
             )}
 
         </div>

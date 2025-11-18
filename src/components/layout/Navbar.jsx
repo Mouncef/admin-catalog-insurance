@@ -53,16 +53,12 @@ function writeMapToLocalStorage(map) {
     }
 }
 /**
- * Importe un JSON au format "app-like-default" ET ses extra namespaces (ex: "grp:")
- * @param {File} file - le fichier JSON
- * @param {string} ns  - namespace principal (par défaut "app:")
- * @param {object} opts
- *  - importExtras:        bool (default: true)  -> importe __extraNamespaces si présent
- *  - purgeExtras:         bool (default: true)  -> purge les namespaces extra avant d'écrire
- *  - extrasWhitelist:     array<string>         -> ex: ["grp:"], sinon tous les prefixes trouvés
- *  - reload:              bool (default: false) -> reload la page à la fin
+ * Importe un dump déjà parsé au format "app-like-default" et ses namespaces supplémentaires.
+ * @param {object} dump - structure JSON correspondant à defaultSettings (+ __extraNamespaces optionnel)
+ * @param {string} ns   - namespace principal (par défaut "app:")
+ * @param {object} opts - options d'écriture (importExtras/purgeExtras/extrasWhitelist/reload)
  */
-async function importAppLikeDefault(file, ns = 'app:', opts = {}) {
+async function importAppLikeDefault(dump, ns = 'app:', opts = {}) {
     const {
         importExtras = true,
         purgeExtras = true,
@@ -71,8 +67,12 @@ async function importAppLikeDefault(file, ns = 'app:', opts = {}) {
     } = opts;
     const UI_KEYS = ['version','theme','locale','density','apiBaseUrl','showBeta'];
 
+    if (!isPlainObject(dump)) {
+        throw new Error('Dump JSON invalide');
+    }
+
     // 1) construire settings à partir de dump.settings (si présent) ou du top-level
-    const uiSource = isPlainObject(obj.settings) ? obj.settings : obj;
+    const uiSource = isPlainObject(dump.settings) ? dump.settings : dump;
     const settings = {};
     for (const k of UI_KEYS) settings[k] = (k in uiSource) ? uiSource[k] : defaultSettings[k];
     localStorage.setItem(ns + 'settings', JSON.stringify(settings));
@@ -85,13 +85,13 @@ async function importAppLikeDefault(file, ns = 'app:', opts = {}) {
     const sources = sourcesFromDefault(defaultSettings);
     for (const key of Object.keys(sources)) {
         if (key === 'settings') continue;
-        const val = (key in obj) ? obj[key] : (defaultSettings[key] ?? null);
+        const val = (key in dump) ? dump[key] : (defaultSettings[key] ?? null);
         localStorage.setItem(ns + key, JSON.stringify(val));
     }
 
     // 3) namespaces additionnels
-    if (importExtras && isPlainObject(obj.__extraNamespaces)) {
-        const prefixes = Object.keys(obj.__extraNamespaces).filter(p => !extrasWhitelist || extrasWhitelist.includes(p));
+    if (importExtras && isPlainObject(dump.__extraNamespaces)) {
+        const prefixes = Object.keys(dump.__extraNamespaces).filter(p => !extrasWhitelist || extrasWhitelist.includes(p));
         if (purgeExtras) {
             for (const p of prefixes) {
                 const toDel = [];
@@ -103,7 +103,7 @@ async function importAppLikeDefault(file, ns = 'app:', opts = {}) {
             }
         }
         for (const p of prefixes) {
-            const map = obj.__extraNamespaces[p];
+            const map = dump.__extraNamespaces[p];
             if (!isPlainObject(map)) continue;
             for (const [shortKey, value] of Object.entries(map)) {
                 localStorage.setItem(p + shortKey, JSON.stringify(value));
@@ -111,51 +111,6 @@ async function importAppLikeDefault(file, ns = 'app:', opts = {}) {
         }
     }
     if (reload) window.location.reload();
-
-
-    /*const text = await file.text();
-    const obj = JSON.parse(text);
-
-    // 1) Reconstituer le bloc settings à partir du top-level du fichier
-    const settings = {};
-    for (const k of UI_KEYS) settings[k] = (k in obj) ? obj[k] : defaultSettings[k];
-    window.localStorage.setItem(ns + 'settings', JSON.stringify(settings));
-
-    // Bonus: si tu utilises DaisyUI et sa clé "theme"
-    if (typeof obj.theme === 'string') {
-        // window.localStorage.setItem('theme', obj.theme);
-        window.localStorage.setItem('theme', "winter");
-    }
-
-    // 2) Écrire toutes les autres sources connues du provider
-    const sources = sourcesFromDefault(defaultSettings);
-    for (const key of Object.keys(sources)) {
-        if (key === 'settings') continue;
-        const val = (key in obj) ? obj[key] : (defaultSettings[key] ?? null);
-        window.localStorage.setItem(ns + key, JSON.stringify(val));
-    }
-
-    // 3) Importer les namespaces supplémentaires (__extraNamespaces)
-    if (importExtras && isPlainObject(obj.__extraNamespaces)) {
-        // Déterminer la liste des prefixes à importer
-        const prefixes = Object.keys(obj.__extraNamespaces)
-            .filter((p) => !extrasWhitelist || extrasWhitelist.includes(p));
-
-        // (optionnel) purge préalable
-        if (purgeExtras) {
-            for (const p of prefixes) flushNamespace(p);
-        }
-
-        // Écriture de chaque namespace
-        for (const p of prefixes) {
-            const map = obj.__extraNamespaces[p]; // { shortKey: value }
-            writeNamespaceMap(p, map);
-        }
-    }
-
-    if (reload) {
-        window.location.reload();
-    }*/
 }
 async function importLegacyDataMapObject(dump, { reload = true } = {}) {
     // 1) map des données

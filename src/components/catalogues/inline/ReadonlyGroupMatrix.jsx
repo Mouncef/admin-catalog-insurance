@@ -1,10 +1,11 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import {Fragment, useEffect, useMemo, useState} from 'react';
 import ValueEditorTyped from '@/components/catalogues/inline/ValueEditorTyped';
-import { coerceCellValue } from '@/lib/utils/CatalogueInline';
+import {coerceCellValue} from '@/lib/utils/CatalogueInline';
+import {isUngroupedCategoryId} from "@/lib/utils/categoryUtils";
 
-function CellView({ v }) {
+function CellView({v}) {
     const hasV = (v?.value || '').trim().length > 0;
     const hasE = (v?.expression || '').trim().length > 0;
     const minHint = v?.data?.min_hint;
@@ -41,10 +42,12 @@ export default function ReadonlyGroupMatrix({
                                                 onRemoveSubItem,
                                                 categoriesByModule,
                                                 actsByCategory,
+                                                categoryGroups = {},
                                                 membres,
                                                 gvaleurs,
                                                 onSave,
                                                 onCancel,
+                                                onAddCategoryLabel,
                                             }) {
     const sortLevels = (list = []) =>
         list
@@ -106,7 +109,7 @@ export default function ReadonlyGroupMatrix({
     const ensureEntry = (store, actId, levelId) => {
         if (!actId || !levelId) return null;
         store[actId] = store[actId] || {};
-        store[actId][levelId] = store[actId][levelId] || { baseVal: {}, options: {}, surcoVal: {} };
+        store[actId][levelId] = store[actId][levelId] || {baseVal: {}, options: {}, surcoVal: {}};
         if (!store[actId][levelId].options) store[actId][levelId].options = {};
         return store[actId][levelId];
     };
@@ -187,17 +190,17 @@ export default function ReadonlyGroupMatrix({
     const valueColumns = useMemo(() => {
         const cols = [];
         baseHeaderItems.forEach((lvl, idx) => {
-            cols.push({ key: `base-${lvl?.id || idx}`, kind: 'base', level: lvl });
+            cols.push({key: `base-${lvl?.id || idx}`, kind: 'base', level: lvl});
             if (optionsEnabled) {
-                cols.push({ key: `opt-${lvl?.id || idx}`, kind: 'option', level: lvl, optionLevelId: lvl?.id });
+                cols.push({key: `opt-${lvl?.id || idx}`, kind: 'option', level: lvl, optionLevelId: lvl?.id});
             }
             if (!useSeparateColumns && showSurcoColumns) {
-                cols.push({ key: `surco-${lvl?.id || idx}`, kind: 'surco', level: lvl });
+                cols.push({key: `surco-${lvl?.id || idx}`, kind: 'surco', level: lvl});
             }
         });
         if (useSeparateColumns && showSurcoColumns) {
             surcoHeaderItems.forEach((lvl, idx) => {
-                cols.push({ key: `surco-sep-${lvl?.id || idx}`, kind: 'surco', level: lvl });
+                cols.push({key: `surco-sep-${lvl?.id || idx}`, kind: 'surco', level: lvl});
             });
         }
         return cols;
@@ -205,8 +208,8 @@ export default function ReadonlyGroupMatrix({
 
     const colDefs = useMemo(() => {
         return [
-            { key: 'garantie', style: { width: '260px' } },
-            ...valueColumns.map((col) => ({ key: col.key, style: { width: '160px' } })),
+            {key: 'garantie', style: {width: '260px'}},
+            ...valueColumns.map((col) => ({key: col.key, style: {width: '160px'}})),
         ];
     }, [valueColumns]);
 
@@ -218,6 +221,7 @@ export default function ReadonlyGroupMatrix({
         }
         return null;
     }
+
     function visibleActsInCat(catId, order) {
         const acts = (actsByCategory.get(catId) || []).filter((a) => membersSet.has(a.id));
         return acts
@@ -231,6 +235,7 @@ export default function ReadonlyGroupMatrix({
             })
             .map((a) => a.id);
     }
+
     function moveCategory(catId, dir) {
         if (!editable) return;
         setCatOrder((prev) => {
@@ -242,6 +247,7 @@ export default function ReadonlyGroupMatrix({
             return arr;
         });
     }
+
     function moveAct(actId, dir) {
         if (!editable) return;
         setActOrder((prev) => {
@@ -264,8 +270,8 @@ export default function ReadonlyGroupMatrix({
     const [editing, setEditing] = useState(null);
 
     function getPair(actId, levelId) {
-        if (!actId || !levelId) return { baseVal: {}, options: {}, surcoVal: {} };
-        return valuesByAct?.[actId]?.[levelId] || { baseVal: {}, options: {}, surcoVal: {} };
+        if (!actId || !levelId) return {baseVal: {}, options: {}, surcoVal: {}};
+        return valuesByAct?.[actId]?.[levelId] || {baseVal: {}, options: {}, surcoVal: {}};
     }
 
     function startEdit(act, level, columnKind, optionLevelId = null) {
@@ -289,18 +295,18 @@ export default function ReadonlyGroupMatrix({
             columnKind,
             optionLevelId: optionLevelId || levelId,
             draft: coerceCellValue(current),
-            meta: { actLabel, levelLabel, kindLabel },
+            meta: {actLabel, levelLabel, kindLabel},
         });
     }
 
     function saveEdit() {
         if (!editing) return;
-        const { actId, nivId, columnKind, optionLevelId, draft } = editing;
+        const {actId, nivId, columnKind, optionLevelId, draft} = editing;
         const payload = coerceCellValue(draft || {});
         setValuesByAct((prev) => {
-            const next = { ...(prev || {}) };
+            const next = {...(prev || {})};
             next[actId] = next[actId] || {};
-            const entry = next[actId][nivId] || { baseVal: {}, options: {}, surcoVal: {} };
+            const entry = next[actId][nivId] || {baseVal: {}, options: {}, surcoVal: {}};
             if (!entry.options) entry.options = {};
             if (columnKind === 'base') entry.baseVal = payload;
             else if (columnKind === 'surco') entry.surcoVal = payload;
@@ -311,9 +317,11 @@ export default function ReadonlyGroupMatrix({
         setEditing(null);
     }
 
-    function cancelEdit() { setEditing(null); }
+    function cancelEdit() {
+        setEditing(null);
+    }
 
-    function renderCell({ key, act, level, columnKind, optionLevelId = null }) {
+    function renderCell({key, act, level, columnKind, optionLevelId = null}) {
         const actId = act?.id;
         const levelId = level?.id;
         const optionKey = optionLevelId || levelId;
@@ -341,7 +349,7 @@ export default function ReadonlyGroupMatrix({
                 onDoubleClick={() => canEdit && startEdit(act, level, columnKind, optionKey)}
                 title={canEdit && editable ? 'Double-clique pour éditer' : ''}
             >
-                <CellView v={cellValue} />
+                <CellView v={cellValue}/>
             </td>
         );
     }
@@ -362,7 +370,7 @@ export default function ReadonlyGroupMatrix({
         const orderByAct = {};
         displayActIds.forEach((id, i) => (orderByAct[id] = i + 1));
 
-        onSave?.({ catOrderSelected, orderByAct, valuesByAct });
+        onSave?.({catOrderSelected, orderByAct, valuesByAct});
     }
 
     return (
@@ -371,15 +379,17 @@ export default function ReadonlyGroupMatrix({
                 <table className="table table-fixed w-full">
                     <colgroup>
                         {colDefs.map((col) => (
-                            <col key={col.key} style={col.style} />
+                            <col key={col.key} style={col.style}/>
                         ))}
                     </colgroup>
                     <thead>
                     {useSeparateColumns ? (
                         <>
                             <tr>
-                                <th rowSpan={2} className="align-bottom" style={{ minWidth: 260 }}>Garantie</th>
-                                <th colSpan={baseHeaderItems.length * (optionsEnabled ? 2 : 1)} className="text-center">Base</th>
+                                <th rowSpan={2} className="align-bottom" style={{minWidth: 260}}>Garantie</th>
+                                <th colSpan={baseHeaderItems.length * (optionsEnabled ? 2 : 1)}
+                                    className="text-center">Base
+                                </th>
                                 {showSurcoColumns && (
                                     <th colSpan={surcoHeaderItems.length} className="text-center">Surcomplémentaire</th>
                                 )}
@@ -394,14 +404,15 @@ export default function ReadonlyGroupMatrix({
                                     </Fragment>
                                 ))}
                                 {showSurcoColumns && surcoHeaderItems.map((lvl, idx) => (
-                                    <th key={`head-surco-${lvl?.id || idx}`} className="text-center">{safeLevelLabel(lvl)}</th>
+                                    <th key={`head-surco-${lvl?.id || idx}`}
+                                        className="text-center">{safeLevelLabel(lvl)}</th>
                                 ))}
                             </tr>
                         </>
                     ) : (
                         <>
                             <tr>
-                                <th rowSpan={2} className="align-bottom" style={{ minWidth: 260 }}>Garantie</th>
+                                <th rowSpan={2} className="align-bottom" style={{minWidth: 260}}>Garantie</th>
                                 {baseHeaderItems.map((lvl, idx) => (
                                     <th
                                         key={`head-combined-${lvl?.id || idx}`}
@@ -426,11 +437,13 @@ export default function ReadonlyGroupMatrix({
                     </thead>
 
                     <tbody>
-                    { catOrder.length === 0 && (
-                        <tr><td colSpan={colDefs.length} className="text-center opacity-60">—</td></tr>
+                    {catOrder.length === 0 && (
+                        <tr>
+                            <td colSpan={colDefs.length} className="text-center opacity-60">—</td>
+                        </tr>
                     )}
 
-                    { (catOrder.map((id) => catsBase.find((c) => c.id === id)).filter(Boolean)).map((cat) => {
+                    {(catOrder.map((id) => catsBase.find((c) => c.id === id)).filter(Boolean)).map((cat) => {
                         const actsRaw = actsByCategory.get(cat.id) || [];
                         const acts = actsRaw
                             .filter((a) => membersSet.has(a.id))
@@ -447,48 +460,130 @@ export default function ReadonlyGroupMatrix({
                         const isFirst = catOrder[0] === cat.id;
                         const isLast = catOrder[catOrder.length - 1] === cat.id;
 
+                        const canAddLabel = typeof onAddCategoryLabel === 'function' && editable;
+                        const catLabels = Array.isArray(categoryGroups?.[cat.id]) ? categoryGroups[cat.id] : [];
                         return (
                             <Fragment key={cat.id}>
-                                <tr className="bg-base-200">
-                                    <th colSpan={colDefs.length} className="text-left">
-                                        <div className="flex items-center gap-2">
-                                            <span className="opacity-70">{cat.libelle || '—'}</span>
-                                            {editable && (
-                                                <div className="ml-auto join">
+                                {!(cat?.libelle === 'Sans groupe' && (cat.isVirtual || isUngroupedCategoryId(cat.id))) ? (
+                                    <tr className="bg-base-200">
+                                        <th colSpan={colDefs.length} className="text-left">
+                                            <div className="flex items-center gap-2">
+                                                <span className="opacity-70">{cat.libelle || '—'}</span>
+                                                {canAddLabel && (
                                                     <button
-                                                        className="btn btn-xs join-item"
-                                                        disabled={isFirst}
-                                                        onClick={() => moveCategory(cat.id, 'up')}
-                                                        title="Monter la catégorie" aria-label="Monter la catégorie"
-                                                    >▲</button>
+                                                        type="button"
+                                                        className="btn btn-xs btn-outline"
+                                                        onClick={() => onAddCategoryLabel?.(cat)}
+                                                    >
+                                                        + Regroupement
+                                                    </button>
+                                                )}
+                                                {editable && (
+                                                    <div className="ml-auto join">
+                                                        <button
+                                                            className="btn btn-xs join-item"
+                                                            disabled={isFirst}
+                                                            onClick={() => moveCategory(cat.id, 'up')}
+                                                            title="Monter la catégorie" aria-label="Monter la catégorie"
+                                                        >▲
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-xs join-item"
+                                                            disabled={isLast}
+                                                            onClick={() => moveCategory(cat.id, 'down')}
+                                                            title="Descendre la catégorie"
+                                                            aria-label="Descendre la catégorie"
+                                                        >▼
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </th>
+                                    </tr>
+                                ) : (
+                                    <tr className="bg-base-200">
+                                        <th colSpan={colDefs.length} className="text-left">
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 border-t border-base-200 my-1"/>
+                                                {canAddLabel && (
                                                     <button
-                                                        className="btn btn-xs join-item"
-                                                        disabled={isLast}
-                                                        onClick={() => moveCategory(cat.id, 'down')}
-                                                        title="Descendre la catégorie" aria-label="Descendre la catégorie"
-                                                    >▼</button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </th>
-                                </tr>
+                                                        type="button"
+                                                        className="btn btn-xs btn-outline"
+                                                        onClick={() => onAddCategoryLabel?.(cat)}
+                                                    >
+                                                        + Regroupement
+                                                    </button>
+                                                )}
+                                                {editable && (
+                                                    <div className="join">
+                                                        <button
+                                                            className="btn btn-xs join-item"
+                                                            disabled={isFirst}
+                                                            onClick={() => moveCategory(cat.id, 'up')}
+                                                            title="Monter la catégorie" aria-label="Monter la catégorie"
+                                                        >▲
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-xs join-item"
+                                                            disabled={isLast}
+                                                            onClick={() => moveCategory(cat.id, 'down')}
+                                                            title="Descendre la catégorie"
+                                                            aria-label="Descendre la catégorie"
+                                                        >▼
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                            </div>
+                                        </th>
+                                    </tr>
+                                )}
+
+                                {catLabels.length > 0 && (
+                                    <tr className="bg-base-100">
+                                        <td colSpan={colDefs.length}>
+                                            <div className="flex flex-wrap gap-2">
+                                                {catLabels.map((label) => (
+                                                    <div key={label.id} className="border border-base-200 rounded-box px-2 py-1 text-xs">
+                                                        <div className="font-semibold">{label.libelle}</div>
+                                                        <div className="flex flex-wrap gap-1 mt-1">
+                                                            {(label.actIds || []).map((actId) => {
+                                                                const act = actsRaw.find((item) => item.id === actId);
+                                                                if (!act) return null;
+                                                                return (
+                                                                    <span key={actId} className="badge badge-outline badge-sm">
+                                                                        {act.libelle || act.code || actId}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
 
                                 {acts.map((a) => {
+
                                     const subRows = subItemsMap?.get(a.id) || [];
                                     return (
                                         <Fragment key={a.id}>
                                             <tr>
-                                                <td className="table-pin-cols">
-                                                    <div className="flex items-center gap-2 w-full">
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="opacity-70 truncate">{a.libelle || '—'}</div>
+                                                <td className={`table-pin-cols ${group?.nom === 'Sans groupe' ? 'py-1' : ''}`}>
+                                                    <div
+                                                        className={`flex items-center gap-2 w-full ${group?.nom === 'Sans groupe' ? 'min-h-0' : ''}`}>
+                                                        <div
+                                                            className={`flex-1 min-w-0 ${group?.nom === 'Sans groupe' ? 'text-xs' : ''}`}>
+                                                            <div
+                                                                className="opacity-70 truncate">{a.libelle || '—'}</div>
                                                         </div>
                                                         <div className="join">
                                                             {allowSubItems && editable && (
                                                                 <button
                                                                     type="button"
                                                                     className="btn btn-xs btn-ghost join-item"
-                                                                    onClick={() => onAddSubItem?.({ act: a })}
+                                                                    onClick={() => onAddSubItem?.({act: a})}
                                                                     title="Ajouter un sous-item"
                                                                 >
                                                                     + Sous-item
@@ -496,23 +591,27 @@ export default function ReadonlyGroupMatrix({
                                                             )}
                                                             {editable && (
                                                                 <>
-                                                                    <button className="btn btn-xs join-item" onClick={() => moveAct(a.id, 'up')}>▲</button>
-                                                                    <button className="btn btn-xs join-item" onClick={() => moveAct(a.id, 'down')}>▼</button>
+                                                                    <button className="btn btn-xs join-item"
+                                                                            onClick={() => moveAct(a.id, 'up')}>▲
+                                                                    </button>
+                                                                    <button className="btn btn-xs join-item"
+                                                                            onClick={() => moveAct(a.id, 'down')}>▼
+                                                                    </button>
                                                                 </>
                                                             )}
                                                         </div>
                                                     </div>
                                                 </td>
 
-                                        {valueColumns.map((col) =>
-                                            renderCell({
-                                                key: `${a.id}-${col.key}`,
-                                                act: a,
-                                                level: col.level,
-                                                columnKind: col.kind,
-                                                optionLevelId: col.optionLevelId,
-                                            })
-                                        )}
+                                                {valueColumns.map((col) =>
+                                                    renderCell({
+                                                        key: `${a.id}-${col.key}`,
+                                                        act: a,
+                                                        level: col.level,
+                                                        columnKind: col.kind,
+                                                        optionLevelId: col.optionLevelId,
+                                                    })
+                                                )}
                                             </tr>
 
                                             {subRows.map((sub) => (
@@ -520,14 +619,18 @@ export default function ReadonlyGroupMatrix({
                                                     <td className="table-pin-cols pl-8">
                                                         <div className="flex items-center gap-2 w-full">
                                                             <div className="flex-1 min-w-0">
-                                                                <div className="opacity-70 truncate">↳ {sub.libelle}</div>
+                                                                <div
+                                                                    className="opacity-70 truncate">↳ {sub.libelle}</div>
                                                             </div>
                                                             {allowSubItems && editable && (
                                                                 <div className="join">
                                                                     <button
                                                                         type="button"
                                                                         className="btn btn-xs btn-ghost join-item"
-                                                                        onClick={() => onAddSubItem?.({ act: a, subItem: sub })}
+                                                                        onClick={() => onAddSubItem?.({
+                                                                            act: a,
+                                                                            subItem: sub
+                                                                        })}
                                                                         title="Modifier ce sous-item"
                                                                     >
                                                                         Modifier
@@ -547,7 +650,12 @@ export default function ReadonlyGroupMatrix({
                                                     {valueColumns.map((col) =>
                                                         renderCell({
                                                             key: `${sub.id}-${col.key}`,
-                                                            act: {...a, id: sub.id, libelle: sub.libelle, isSubItem: true},
+                                                            act: {
+                                                                ...a,
+                                                                id: sub.id,
+                                                                libelle: sub.libelle,
+                                                                isSubItem: true
+                                                            },
                                                             level: col.level,
                                                             columnKind: col.kind,
                                                             optionLevelId: col.optionLevelId,
@@ -580,18 +688,19 @@ export default function ReadonlyGroupMatrix({
                             <span className="badge badge-sm ml-2">{editing.meta?.kindLabel || ''}</span>
                         </h3>
                         <p className="opacity-70 text-sm mb-4">
-                            Ajuste les champs ci-dessous puis enregistre pour persister la valeur dans le référentiel local.
+                            Ajuste les champs ci-dessous puis enregistre pour persister la valeur dans le référentiel
+                            local.
                         </p>
                         <ValueEditorTyped
                             value={editing.draft}
-                            onChange={(next) => setEditing((prev) => prev ? ({ ...prev, draft: next }) : prev)}
+                            onChange={(next) => setEditing((prev) => prev ? ({...prev, draft: next}) : prev)}
                         />
                         <div className="modal-action">
                             <button type="button" className="btn" onClick={cancelEdit}>Annuler</button>
                             <button type="button" className="btn btn-primary" onClick={saveEdit}>Enregistrer</button>
                         </div>
                     </div>
-                    <button className="modal-backdrop" aria-label="Fermer la fenêtre" onClick={cancelEdit} />
+                    <button className="modal-backdrop" aria-label="Fermer la fenêtre" onClick={cancelEdit}/>
                 </div>
             )}
         </div>

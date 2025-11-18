@@ -150,81 +150,128 @@ export const defaultSettings = {
             "id": "1f3d7b4e-9a2c-4d1e-b65a-5d2f8a9c3e71",
             "code": "HOSP",
             "libelle": "Hospitalisation",
-            "ordre": 1
+            "ordre": 1,
+            "risque": "sante"
         },
         {
             "id": "2a5b8c7d-3e1f-4a9b-8c6d-0e1f2a3b4c5d",
             "code": "DENTAIRE",
             "libelle": "Dentaire",
-            "ordre": 2
+            "ordre": 2,
+            "risque": "sante"
         },
         {
             "id": "3c6d9e0f-1a2b-4c5d-8e9f-0a1b2c3d4e5f",
             "code": "OPTIQUE",
             "libelle": "Optique",
-            "ordre": 3
+            "ordre": 3,
+            "risque": "sante"
         },
         {
             "id": "4e7f0a1b-2c3d-4e5f-9a0b-1c2d3e4f5a6b",
             "code": "PHARMA",
             "libelle": "Pharmacie",
-            "ordre": 4
+            "ordre": 4,
+            "risque": "sante"
         },
         {
             "id": "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d",
             "code": "CONSULT",
             "libelle": "Médecine / Consultations",
-            "ordre": 5
+            "ordre": 5,
+            "risque": "sante"
         },
         {
             "id": "6b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8d9e",
             "code": "MATERNITE",
             "libelle": "Maternité",
-            "ordre": 6
+            "ordre": 6,
+            "risque": "sante"
         },
         {
             "id": "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
             "code": "SOINS_INF",
             "libelle": "Soins infirmiers",
-            "ordre": 7
+            "ordre": 7,
+            "risque": "sante"
         },
         {
             "id": "8d9e0f1a-2b3c-4d5e-9f6a-7b8c9d0e1f2a",
             "code": "AUX_MED",
             "libelle": "Auxiliaires médicaux",
-            "ordre": 8
+            "ordre": 8,
+            "risque": "sante"
         },
         {
             "id": "9e0f1a2b-3c4d-5e6f-8a7b-9c0d1e2f3a4b",
             "code": "EQUIPEMENTS",
             "libelle": "Équipements et prothèses",
-            "ordre": 9
+            "ordre": 9,
+            "risque": "sante"
         },
         {
             "id": "0f1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
             "code": "PREVENTION",
             "libelle": "Services - Prévention",
-            "ordre": 10
+            "ordre": 10,
+            "risque": "sante"
         },
         {
             "id": "15ada47f-4f2b-4aa5-bd8e-fbf6ba1f4ea8",
             "code": "SOINS_COURANTS",
             "libelle": "Soins courants",
-            "ordre": 11
+            "ordre": 11,
+            "risque": "sante"
         },
         {
             "id": "0ec2af6a-ede4-408d-874e-98dba7e61419",
             "code": "AIDES_AUDITIVES",
             "libelle": "Aides auditives",
-            "ordre": 12
+            "ordre": 12,
+            "risque": "sante"
         },
         {
-            "id": "mod-prev-garanties",
-            "code": "PREV_GARANTIES",
-            "libelle": "Garanties prévoyance",
-            "ordre": 50,
+            "id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "code": "DECES_EN_CAPITAL",
+            "libelle": "Décès en capital",
+            "ordre": 1,
             "risque": "prevoyance"
-        }
+        },
+        {
+            "id": "5f18eea8-8b0e-45cb-bc70-9063a33f7088",
+            "code": "FRAIS_OBSEQUES",
+            "libelle": "Frais d'obsèques",
+            "ordre": 2,
+            "risque": "prevoyance"
+        },
+        {
+            "id": "c0d1ac43-b659-44e0-95e7-38be7d590965",
+            "code": "RENTE_EDUCATION",
+            "libelle": "Rente éducation",
+            "ordre": 3,
+            "risque": "prevoyance"
+        },
+        {
+            "id": "976c2d7d-4c00-407c-8d63-50a27cd2a223",
+            "code": "RENTE_CONJOINT",
+            "libelle": "Rente de conjoint",
+            "ordre": 4,
+            "risque": "prevoyance"
+        },
+        {
+            "id": "eb10e62a-4d35-4d95-8ee7-f13d17fdbdca",
+            "code": "IT_IP",
+            "libelle": "Arrêt de travail / Invalidité",
+            "ordre": 5,
+            "risque": "prevoyance"
+        },
+        {
+            "id": "b036d298-c07e-4622-b42e-27dc288fde11",
+            "code": "SERVICES",
+            "libelle": "Services",
+            "ordre": 6,
+            "risque": "prevoyance"
+        },
     ],
     ref_categories_v1: [
         {
@@ -584,34 +631,30 @@ export const defaultSettings = {
             "libelle": "Transport",
             "ordre": 8
         },
+
         {
-            "id": "cat-prev-capital",
-            "ref_module_id": "mod-prev-garanties",
-            "code": "DECES_CAPITAL",
-            "libelle": "Décès en capital",
-            "ordre": 1
+            "id": "f0f75568-891a-400b-b647-f832e885adc2",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "code": "CAPITAL_ANY_SIT_FAMILLY",
+            "libelle": "Capital quelle que soit la situation de famille",
+            "ordre": 1,
         },
+
         {
-            "id": "cat-prev-obseques",
-            "ref_module_id": "mod-prev-garanties",
-            "code": "FRAIS_OBSEQUES",
-            "libelle": "Frais d’obsèques",
-            "ordre": 2
+            "id": "b27e11c7-9c0d-4e3b-9c33-b93d36ce8b01",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "code": "CAPITAL_SITUATION_FAMILLE",
+            "libelle": "Capital en fonction de la situation de famille",
+            "ordre": 2,
         },
+
         {
-            "id": "cat-prev-rentes",
-            "ref_module_id": "mod-prev-garanties",
-            "code": "RENTE_EDUCATION",
-            "libelle": "Rentes éducation",
-            "ordre": 3
+            "id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "code": "CAPITAL_RENTE",
+            "libelle": "Capital + rente",
+            "ordre": 3,
         },
-        {
-            "id": "cat-prev-services",
-            "ref_module_id": "mod-prev-garanties",
-            "code": "SERVICES",
-            "libelle": "Services associés",
-            "ordre": 4
-        }
     ],
     ref_acts_v1: [
         {
@@ -1179,94 +1222,114 @@ export const defaultSettings = {
 
         {
             "id": "eq111111-0001-4aaa-1a10-000000000001",
+            "ref_module_id": "9e0f1a2b-3c4d-5e6f-8a7b-9c0d1e2f3a4b",
             "ref_categorie_id": "i1a2b3c4-0001-4e99-1c90-111111111119",
             "code": "EQP_PROTHESE_AUDITIVE",
             "libelle": "Prothèse auditive",
             "libelle_long": "",
             "allow_surco": true,
-            "ordre": 1
+            "ordre": 1,
+            "risque": "sante"
         },
         {
             "id": "eq222222-0001-4bbb-1b20-000000000001",
+            "ref_module_id": "9e0f1a2b-3c4d-5e6f-8a7b-9c0d1e2f3a4b",
             "ref_categorie_id": "i1a2b3c4-0002-4e99-1c90-222222222221",
             "code": "EQP_ORTHESE_GENOU",
             "libelle": "Orthèse de genou",
             "libelle_long": "",
             "allow_surco": true,
-            "ordre": 1
+            "ordre": 1,
+            "risque": "sante"
         },
         {
             "id": "eq333333-0001-4ccc-1c30-000000000001",
+            "ref_module_id": "9e0f1a2b-3c4d-5e6f-8a7b-9c0d1e2f3a4b",
             "ref_categorie_id": "i1a2b3c4-0003-4e99-1c90-333333333331",
             "code": "EQP_CHAISE_ROULANTE",
             "libelle": "Chaise roulante",
             "libelle_long": "",
             "allow_surco": true,
-            "ordre": 1
+            "ordre": 1,
+            "risque": "sante"
         },
         {
             "id": "eq333333-0002-4ccc-1c30-000000000002",
+            "ref_module_id": "9e0f1a2b-3c4d-5e6f-8a7b-9c0d1e2f3a4b",
             "ref_categorie_id": "i1a2b3c4-0003-4e99-1c90-333333333331",
             "code": "EQP_LIT_MEDICALISE",
             "libelle": "Lit médicalisé",
             "libelle_long": "",
             "allow_surco": true,
-            "ordre": 2
+            "ordre": 2,
+            "risque": "sante"
         },
         {
             "id": "eq444444-0001-4ddd-1d40-000000000001",
+            "ref_module_id": "9e0f1a2b-3c4d-5e6f-8a7b-9c0d1e2f3a4b",
             "ref_categorie_id": "i1a2b3c4-0004-4e99-1c90-444444444441",
             "code": "EQP_STENT_CORONAIRE",
             "libelle": "Stent coronaire (DMI)",
             "libelle_long": "",
             "allow_surco": true,
-            "ordre": 1
+            "ordre": 1,
+            "risque": "sante"
         },
 
         {
             "id": "pr111111-0001-4aaa-0a10-000000000001",
+            "ref_module_id": "0f1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
             "ref_categorie_id": "j1a2b3c4-0001-4eaa-0da0-111111111120",
             "code": "PREV_BILAN_ANNUEL",
             "libelle": "Bilan de santé annuel",
             "libelle_long": "",
             "allow_surco": true,
-            "ordre": 1
+            "ordre": 1,
+            "risque": "sante"
         },
         {
             "id": "pr222222-0001-4bbb-0b20-000000000001",
+            "ref_module_id": "0f1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
             "ref_categorie_id": "j1a2b3c4-0002-4eaa-0da0-222222222222",
             "code": "PREV_DETARTRAGE",
             "libelle": "Détartrage préventif",
             "libelle_long": "",
             "allow_surco": true,
-            "ordre": 1
+            "ordre": 1,
+            "risque": "sante"
         },
         {
             "id": "pr222222-0002-4bbb-0b20-000000000002",
+            "ref_module_id": "0f1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
             "ref_categorie_id": "j1a2b3c4-0002-4eaa-0da0-222222222222",
             "code": "PREV_SCELLEMENT_SILLONS",
             "libelle": "Scellement des sillons",
             "libelle_long": "",
             "allow_surco": true,
-            "ordre": 2
+            "ordre": 2,
+            "risque": "sante"
         },
         {
             "id": "pr333333-0001-4ccc-0c30-000000000001",
+            "ref_module_id": "0f1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
             "ref_categorie_id": "j1a2b3c4-0003-4eaa-0da0-333333333332",
             "code": "PREV_SEVRAGE_TABAGIQUE",
             "libelle": "Programme de sevrage tabagique",
             "libelle_long": "",
             "allow_surco": true,
-            "ordre": 1
+            "ordre": 1,
+            "risque": "sante"
         },
         {
             "id": "pr444444-0001-4ddd-0d40-000000000001",
+            "ref_module_id": "0f1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
             "ref_categorie_id": "j1a2b3c4-0004-4eaa-0da0-444444444442",
             "code": "PREV_VACC_TETANOS",
             "libelle": "Vaccination tétanos",
             "libelle_long": "",
             "allow_surco": true,
-            "ordre": 1
+            "ordre": 1,
+            "risque": "sante"
         },
 
 
@@ -1414,126 +1477,176 @@ export const defaultSettings = {
             "ordre": 1
         },
 
+
         {
-            "id": "act-prev-capital-solo",
-            "ref_categorie_id": "cat-prev-capital",
-            "code": "CAPITAL_SITUATION_FAMILLE",
-            "libelle": "Capital décès — célibataire sans enfant",
+            "id": "c53eed4e-e7db-48e4-8b2d-0b5d4a597837",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "f0f75568-891a-400b-b647-f832e885adc2",
+            "code": "CAPITAL_ANY_SIT_FAMILLY",
+            "libelle": "Capital quelle que soit la situation de famille",
             "libelle_long": "",
             "allow_surco": false,
-            "ordre": 1
+            "ordre": 1,
+            "risque": "prevoyance"
         },
+
+
+
+
         {
-            "id": "act-prev-capital-marie",
-            "ref_categorie_id": "cat-prev-capital",
-            "code": "CAPITAL_MARIE_SANS_ENFANT",
-            "libelle": "Capital décès — marié ou personne à charge",
+            "id": "18092797-ef52-4989-9833-2d8c9dd7ce9b",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "b27e11c7-9c0d-4e3b-9c33-b93d36ce8b01",
+            "code": "CELIB_VEUF_DIVORCE_POURC_SALAIRE_REF",
+            "libelle": "Célibataire, veuf, divorcé sans enfant, pourcentage du salaire de référence",
             "libelle_long": "",
             "allow_surco": false,
-            "ordre": 2
+            "ordre": 5,
+            "risque": "prevoyance"
         },
         {
-            "id": "act-prev-capital-majoration",
-            "ref_categorie_id": "cat-prev-capital",
-            "code": "CAPITAL_MAJ_ENFANT",
-            "libelle": "Capital décès — majoration par enfant supplémentaire",
+            "id": "a8839373-b765-4fec-bc57-7d776304f715",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "b27e11c7-9c0d-4e3b-9c33-b93d36ce8b01",
+            "code": "MARIE_CVDS_POURC_SALAIRE_REF",
+            "libelle": "Marié sans enfant ou CVDS avec personne à charge, pourcentage du salaire de référence",
             "libelle_long": "",
             "allow_surco": false,
-            "ordre": 3
+            "ordre": 6,
+            "risque": "prevoyance"
         },
         {
-            "id": "act-prev-ptia",
-            "ref_categorie_id": "cat-prev-capital",
-            "code": "PTIA_ANTICIPATION",
-            "libelle": "PTIA — versement par anticipation",
+            "id": "d518b519-2e49-47b1-a526-15578212a59a",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "b27e11c7-9c0d-4e3b-9c33-b93d36ce8b01",
+            "code": "MAJO_ENFANT_POURC_SALAIRE_REF",
+            "libelle": "Majoration par enfant ou personne à charge supplémentaire, pourcentage du salaire de référence",
             "libelle_long": "",
             "allow_surco": false,
-            "ordre": 4
+            "ordre": 7,
+            "risque": "prevoyance"
         },
+
+
         {
-            "id": "act-prev-deces-accident",
-            "ref_categorie_id": "cat-prev-capital",
-            "code": "DECES_ACCIDENTEL",
-            "libelle": "Décès accidentel (supplément capital décès)",
+            "id": "37739182-eab8-4416-87ec-84df38dff1ca",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+            "code": "CELIB_VEUF_DIVORCE_POURC_SALAIRE_REF",
+            "libelle": "Célibataire, veuf, divorcé, séparé sans enfant, pourcentage du salaire de référence",
             "libelle_long": "",
             "allow_surco": false,
-            "ordre": 5
+            "ordre": 8,
+            "risque": "prevoyance"
+        },
+
+        {
+            "id": "6e8401ab-c49a-4d26-88b3-800942d3919f",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+            "code": "Marié, concubin, pacsé sans enfant ou CVDS avec personne à charge_POURC_SALAIRE_REF",
+            "libelle": "Marié, concubin, pacsé sans enfant ou CVDS avec personne à charge, pourcentage du salaire de référence",
+            "libelle_long": "",
+            "allow_surco": false,
+            "ordre": 9,
+            "risque": "prevoyance"
+        },
+
+        {
+            "id": "3ae410b6-d991-4509-a0d7-ad387b04263a",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+            "code": "Majoration par personne à charge supplémentaire_POURC_SALAIRE_REF",
+            "libelle": "Majoration par personne à charge supplémentaire, pourcentage du salaire de référence",
+            "libelle_long": "",
+            "allow_surco": false,
+            "ordre": 10,
+            "risque": "prevoyance"
+        },
+
+        {
+            "id": "a8431dc9-da62-4b5b-af1b-9108bef00dea",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+            "code": "Capital uniforme_POURC_SALAIRE_REF",
+            "libelle": "Capital uniforme, pourcentage du salaire de référence",
+            "libelle_long": "",
+            "allow_surco": false,
+            "ordre": 11,
+            "risque": "prevoyance"
+        },
+
+        {
+            "id": "9495f2dd-ce0e-4b45-9c0d-a83bbf649a55",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+            "code": "Rente éducation jusqu'à 10 ans_POURC_SALAIRE_REF",
+            "libelle": "Rente éducation jusqu'à 10 ans, pourcentage du salaire de référence",
+            "libelle_long": "",
+            "allow_surco": false,
+            "ordre": 12,
+            "risque": "prevoyance"
+        },
+
+        {
+            "id": "f23cf085-0f67-41bd-b874-f2476e0d798d",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+            "code": "Rente éducation de 11 à 18 ans_POURC_SALAIRE_REF",
+            "libelle": "Rente éducation de 11 à 18 ans, pourcentage du salaire de référence",
+            "libelle_long": "",
+            "allow_surco": false,
+            "ordre": 13,
+            "risque": "prevoyance"
+        },
+
+        {
+            "id": "a9d8832e-c4a0-4857-b398-549e06be0ef9",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+            "code": "Rente éducation de 19 à 26 ans (sous conditions)_POURC_SALAIRE_REF",
+            "libelle": "Rente éducation de 19 à 26 ans (sous conditions), pourcentage du salaire de référence",
+            "libelle_long": "",
+            "allow_surco": false,
+            "ordre": 14,
+            "risque": "prevoyance"
+        },
+
+
+        {
+            "id": "14ac6409-a67a-4015-91f2-00efde375561",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "__ungrouped__:9602b034-5824-4923-8595-2c2f763eed36",
+            "code": "PTIA",
+            "libelle": "PTIA - versement par anticipation du décès toutes causes",
+            "libelle_long": "",
+            "allow_surco": false,
+            "ordre": 15,
+            "risque": "prevoyance"
         },
         {
-            "id": "act-prev-double-effet",
-            "ref_categorie_id": "cat-prev-capital",
+            "id": "351c4e3d-1524-4fa3-bcff-9a34303db302",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "__ungrouped__:9602b034-5824-4923-8595-2c2f763eed36",
+            "code": "DECES_ACCIDENT_AVC",
+            "libelle": "Décès accidentel y compris en cas d’AVC",
+            "libelle_long": "",
+            "allow_surco": false,
+            "ordre": 16,
+            "risque": "prevoyance"
+        },
+        {
+            "id": "e10cde41-2565-4d8f-8617-a7b8bd8e5525",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "ref_categorie_id": "__ungrouped__:9602b034-5824-4923-8595-2c2f763eed36",
             "code": "DOUBLE_EFFET",
-            "libelle": "Double effet (100% du capital décès)",
+            "libelle": "Double effet",
             "libelle_long": "",
             "allow_surco": false,
-            "ordre": 6
+            "ordre": 17,
+            "risque": "prevoyance"
         },
 
-        {
-            "id": "act-prev-obseques",
-            "ref_categorie_id": "cat-prev-obseques",
-            "code": "FRAIS_OBSEQUES_PMSS",
-            "libelle": "Frais d’obsèques — salarié, conjoint et enfants",
-            "libelle_long": "",
-            "allow_surco": false,
-            "ordre": 1
-        },
-
-        {
-            "id": "act-prev-rente-0-10",
-            "ref_categorie_id": "cat-prev-rentes",
-            "code": "RENTE_EDU_0_10",
-            "libelle": "Rente éducation jusqu’à 10 ans",
-            "libelle_long": "",
-            "allow_surco": false,
-            "ordre": 1
-        },
-        {
-            "id": "act-prev-rente-11-18",
-            "ref_categorie_id": "cat-prev-rentes",
-            "code": "RENTE_EDU_11_18",
-            "libelle": "Rente éducation de 11 à 18 ans",
-            "libelle_long": "",
-            "allow_surco": false,
-            "ordre": 2
-        },
-        {
-            "id": "act-prev-rente-19-26",
-            "ref_categorie_id": "cat-prev-rentes",
-            "code": "RENTE_EDU_19_26",
-            "libelle": "Rente éducation de 19 à 26 ans (conditions)",
-            "libelle_long": "",
-            "allow_surco": false,
-            "ordre": 3
-        },
-
-        {
-            "id": "act-prev-service-assistance",
-            "ref_categorie_id": "cat-prev-services",
-            "code": "SERVICE_ASSISTANCE_CONFORT",
-            "libelle": "Assistance Confort",
-            "libelle_long": "",
-            "allow_surco": false,
-            "ordre": 1
-        },
-        {
-            "id": "act-prev-service-previa",
-            "ref_categorie_id": "cat-prev-services",
-            "code": "SERVICE_PREVIA",
-            "libelle": "PREVIA",
-            "libelle_long": "",
-            "allow_surco": false,
-            "ordre": 2
-        },
-        {
-            "id": "act-prev-service-db",
-            "ref_categorie_id": "cat-prev-services",
-            "code": "SERVICE_DB_LIGNE",
-            "libelle": "DB en ligne - quijedesigne.fr",
-            "libelle_long": "",
-            "allow_surco": false,
-            "ordre": 3
-        },
     ],
     ref_cat_personnel_v1: [
         { id: "cat-non-cadres", code: "NON_CADRES", libelle: "Non cadres", ordre: 1, is_enabled: true },
@@ -2013,443 +2126,435 @@ export const defaultSettings = {
         }
     ],
     groupe_actes_v1: [
-/*        {
-            "id": "a5c6b9c4-3c2a-43f2-a4c1-1b7c8d100001",
-            "catalogue_id": "c1b5c0de-7b6e-4a6f-9f10-111111111111",
-            "ref_module_id": "f0a1b2c3-d4e5-46f7-8800-222222222222",
-            "nom": "Soins courants — Analyses & Labo",
-            "niveau_id": "9e3f2c10-5b6a-4f7e-9012-333333333333",
-            "priorite": 10
-        },
         {
-            "id": "b6d7cab5-4d3b-54g3-b5d2-2c8d9e200002",
-            "catalogue_id": "c1b5c0de-7b6e-4a6f-9f10-111111111111",
-            "ref_module_id": "f0a1b2c3-d4e5-46f7-8800-222222222222",
-            "nom": "Soins courants — Imagerie",
-            "niveau_id": "9e3f2c10-5b6a-4f7e-9012-333333333333",
-            "priorite": 20
-        },
-        {
-            "id": "c7e8dbc6-5e4c-65h4-c6e3-3d9eaf300003",
-            "catalogue_id": "c1b5c0de-7b6e-4a6f-9f10-111111111111",
-            "ref_module_id": "0aa1bb22-cc33-4dd4-eeee-444444444444",
-            "nom": "Dentaire — Prothèses",
-            "niveau_id": "2a6b8c90-1d2e-43f4-a567-555555555555",
-            "priorite": 30
-        }*/
+            "id": "grp-prev-deces-capital",
+            "catalogue_id": "c2d4b6f8-1a2b-4c3d-9e0f-1234567890ab",
+            "ref_module_id": "9602b034-5824-4923-8595-2c2f763eed36",
+            "nom": "Décès en capital",
+            "priorite": 10,
+            "ordre": 1,
+            "cat_order": [],
+            "sub_items": [
+                {
+                    "id": "sub-prev-deces-flat-principal",
+                    "parent_act_id": "f0f75568-891a-400b-b647-f832e885adc2",
+                    "libelle": "Montant principal",
+                    "description": "Valeur principale délivrée côté client",
+                    "field_type": "radio",
+                    "value_type_id": "percent_salary_reference_select",
+                    "min_hint": "≥ 100 %",
+                    "max_hint": "≤ 250 %"
+                },
+                {
+                    "id": "sub-prev-deces-flat-ptia",
+                    "parent_act_id": "f0f75568-891a-400b-b647-f832e885adc2",
+                    "libelle": "PTIA (toutes causes)",
+                    "description": "Activation de l’option PTIA",
+                    "field_type": "checkbox",
+                    "value_type_id": "free_text"
+                },
+                {
+                    "id": "sub-prev-deces-flat-accident",
+                    "parent_act_id": "f0f75568-891a-400b-b647-f832e885adc2",
+                    "libelle": "Décès accidentel / AVC",
+                    "description": "Capital supplémentaire 100 %",
+                    "field_type": "checkbox",
+                    "value_type_id": "free_text"
+                },
+                {
+                    "id": "sub-prev-deces-flat-double-effet",
+                    "parent_act_id": "f0f75568-891a-400b-b647-f832e885adc2",
+                    "libelle": "Double effet",
+                    "description": "100 % supplémentaire en cas de double effet",
+                    "field_type": "checkbox",
+                    "value_type_id": "free_text"
+                },
+                {
+                    "id": "sub-prev-deces-family-single",
+                    "parent_act_id": "b27e11c7-9c0d-4e3b-9c33-b93d36ce8b01",
+                    "libelle": "Célibataire / veuf / sans enfant",
+                    "description": "Liste prédéfinie",
+                    "field_type": "select",
+                    "value_type_id": "percent_salary_reference_select",
+                    "min_hint": "≥ 100 %",
+                    "max_hint": "≤ 250 %"
+                },
+                {
+                    "id": "sub-prev-deces-family-maried",
+                    "parent_act_id": "b27e11c7-9c0d-4e3b-9c33-b93d36ce8b01",
+                    "libelle": "Marié ou CVDS avec personne à charge",
+                    "description": "Pourcentage personnalisé",
+                    "field_type": "radio",
+                    "value_type_id": "percent_salary_reference_input",
+                    "min_hint": "≥ 100 %",
+                    "max_hint": "≤ 250 %"
+                },
+                {
+                    "id": "sub-prev-deces-family-majoration",
+                    "parent_act_id": "b27e11c7-9c0d-4e3b-9c33-b93d36ce8b01",
+                    "libelle": "Majoration par enfant / personne à charge",
+                    "description": "Majoration supplémentaire par enfant",
+                    "field_type": "radio",
+                    "value_type_id": "percent_salary_reference_input",
+                    "min_hint": "≥ 0 %",
+                    "max_hint": "≤ 50 %"
+                },
+                {
+                    "id": "sub-prev-capital-rente-capital",
+                    "parent_act_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+                    "libelle": "Capital uniforme",
+                    "description": "Pourcentage appliqué au salaire de référence",
+                    "field_type": "radio",
+                    "value_type_id": "percent_salary_reference_input",
+                    "min_hint": "≥ 100 %",
+                    "max_hint": "≤ 250 %"
+                },
+                {
+                    "id": "sub-prev-rente-8",
+                    "parent_act_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+                    "libelle": "Rente éducation jusqu'à 8 ans",
+                    "field_type": "radio",
+                    "value_type_id": "percent_salary_reference_input",
+                    "min_hint": "≥ 4 %",
+                    "max_hint": "≤ 10 %"
+                },
+                {
+                    "id": "sub-prev-rente-18",
+                    "parent_act_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+                    "libelle": "Rente éducation de 9 à 18 ans",
+                    "field_type": "radio",
+                    "value_type_id": "percent_salary_reference_input",
+                    "min_hint": "≥ 6 %",
+                    "max_hint": "≤ 12 %"
+                },
+                {
+                    "id": "sub-prev-rente-26",
+                    "parent_act_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+                    "libelle": "Rente éducation de 19 à 26 ans",
+                    "field_type": "radio",
+                    "value_type_id": "percent_salary_reference_input",
+                    "min_hint": "≥ 6 %",
+                    "max_hint": "≤ 12 %"
+                },
+                {
+                    "id": "sub-prev-rente-viagere",
+                    "parent_act_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
+                    "libelle": "Rente viagère enfants handicapés",
+                    "description": "Option (case à cocher)",
+                    "field_type": "checkbox",
+                    "value_type_id": "free_text"
+                }
+            ]
+        }
     ],
     groupe_actes_membre_v1: [
         {
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "5d4e3e94-99eb-4adc-93ce-0de744d80e6f",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "f0f75568-891a-400b-b647-f832e885adc2",
             "ordre": 1
         },
         {
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "1b5a225c-bffc-4a3e-8605-9a2439e3169f",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "b27e11c7-9c0d-4e3b-9c33-b93d36ce8b01",
             "ordre": 2
         },
         {
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "eb2b703b-a752-4027-945e-6fcb6ca9173b",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "20ebeab8-4e9d-4537-a4fa-508fe37d04b0",
             "ordre": 3
-        },
-        {
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "a51871c8-6aac-4f8c-aaf0-1e0dcaf80a2a",
-            "ordre": 4
-        },
-        {
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "ho333333-0001-4ccc-7c30-000000000001",
-            "ordre": 5
-        },
-        {
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "ho444444-0001-4ddd-7d40-000000000001",
-            "ordre": 6
         }
     ],
     groupe_valeur_v1: [
         {
-            "id": "v-41cb7d4c-5260-4b69-8014-14605d810509",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "5d4e3e94-99eb-4adc-93ce-0de744d80e6f",
-            "niveau_id": "5dfa0ab1-02e1-45ef-9bfa-7e470fc7175b",
+            "id": "val-prev-flat",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-deces-flat-principal",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "225%"
+            "commentaire": "125 % du salaire de référence",
+            "value": "125 % du salaire de référence",
+            "value_type": "percent_salary_reference_select",
+            "type": "percent_salary_reference_select",
+            "data_json": {
+                "percent": "125%"
+            }
         },
         {
-            "id": "v-710a670f-6f4b-4ee2-ad17-7381382fd23e",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "5d4e3e94-99eb-4adc-93ce-0de744d80e6f",
-            "niveau_id": "niv-confort",
+            "id": "val-prev-flat-ptia",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-deces-flat-ptia",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "280%"
+            "commentaire": "PTIA incluse",
+            "value": "PTIA incluse",
+            "value_type": "free_text",
+            "type": "free_text",
+            "data_json": {
+                "label": "Incluse"
+            }
         },
         {
-            "id": "v-4321ffcb-3c4f-441c-93c5-de193f7ad6c0",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "5d4e3e94-99eb-4adc-93ce-0de744d80e6f",
-            "niveau_id": "753c55d8-11f4-4d26-9eb8-605d7d2d61ba",
+            "id": "val-prev-flat-accident",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-deces-flat-accident",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "450%"
+            "commentaire": "Double capital en cas d’AVC/accident",
+            "value": "Double capital en cas d’AVC/accident",
+            "value_type": "free_text",
+            "type": "free_text",
+            "data_json": {
+                "label": "100 % supplémentaire"
+            }
         },
         {
-            "id": "v-eddd51a8-2739-440c-973e-59262b63e9cb",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "1b5a225c-bffc-4a3e-8605-9a2439e3169f",
-            "niveau_id": "5dfa0ab1-02e1-45ef-9bfa-7e470fc7175b",
+            "id": "val-prev-flat-double-effet",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-deces-flat-double-effet",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "250%"
+            "commentaire": "Activation du double effet",
+            "value": "Activation du double effet",
+            "value_type": "free_text",
+            "type": "free_text",
+            "data_json": {
+                "label": "Oui"
+            }
         },
         {
-            "id": "v-dc4f8a8b-3a1b-4da0-9e2d-1ccffc583a41",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "1b5a225c-bffc-4a3e-8605-9a2439e3169f",
-            "niveau_id": "niv-confort",
+            "id": "val-prev-family-single",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-deces-family-single",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "280%"
+            "commentaire": "125 % du salaire de référence",
+            "value": "125 % du salaire de référence",
+            "value_type": "percent_salary_reference_select",
+            "type": "percent_salary_reference_select",
+            "data_json": {
+                "percent": "125%"
+            }
         },
         {
-            "id": "v-815d4793-5656-4803-b2dc-3c98a147932c",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "1b5a225c-bffc-4a3e-8605-9a2439e3169f",
-            "niveau_id": "753c55d8-11f4-4d26-9eb8-605d7d2d61ba",
+            "id": "val-prev-family-maried",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-deces-family-maried",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "450%"
+            "commentaire": "180 % du salaire de référence",
+            "value": "180 % du salaire de référence",
+            "value_type": "percent_salary_reference_input",
+            "type": "percent_salary_reference_input",
+            "data_json": {
+                "percent": 180
+            }
         },
         {
-            "id": "v-d1075003-3fc4-48fd-8567-1af662d169a5",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "eb2b703b-a752-4027-945e-6fcb6ca9173b",
-            "niveau_id": "5dfa0ab1-02e1-45ef-9bfa-7e470fc7175b",
+            "id": "val-prev-family-majoration",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-deces-family-majoration",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "250%"
+            "commentaire": "+55 % par enfant",
+            "value": "+55 % par enfant",
+            "value_type": "percent_salary_reference_input",
+            "type": "percent_salary_reference_input",
+            "data_json": {
+                "percent": 55
+            }
         },
         {
-            "id": "v-ddd8641b-15db-401e-9168-b17489bcc9ec",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "eb2b703b-a752-4027-945e-6fcb6ca9173b",
-            "niveau_id": "niv-confort",
+            "id": "val-prev-capital-rente",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-capital-rente-capital",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "330%"
+            "commentaire": "150 % du salaire de référence",
+            "value": "150 % du salaire de référence",
+            "value_type": "percent_salary_reference_input",
+            "type": "percent_salary_reference_input",
+            "data_json": {
+                "percent": 150
+            }
         },
         {
-            "id": "v-dd6464cf-c451-4a66-99c8-e9dd004604bd",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "eb2b703b-a752-4027-945e-6fcb6ca9173b",
-            "niveau_id": "753c55d8-11f4-4d26-9eb8-605d7d2d61ba",
+            "id": "val-prev-rente-8",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-rente-8",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "450%"
+            "commentaire": "6 % du salaire de référence",
+            "value": "6 % du salaire de référence",
+            "value_type": "percent_salary_reference_input",
+            "type": "percent_salary_reference_input",
+            "data_json": {
+                "percent": 6
+            }
         },
         {
-            "id": "v-b3b873be-1968-4586-8141-05ff635cb3a0",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "a51871c8-6aac-4f8c-aaf0-1e0dcaf80a2a",
-            "niveau_id": "5dfa0ab1-02e1-45ef-9bfa-7e470fc7175b",
+            "id": "val-prev-rente-18",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-rente-18",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "130%"
+            "commentaire": "8 % du salaire de référence",
+            "value": "8 % du salaire de référence",
+            "value_type": "percent_salary_reference_input",
+            "type": "percent_salary_reference_input",
+            "data_json": {
+                "percent": 8
+            }
         },
         {
-            "id": "v-46523642-a830-42b0-aaa9-ef9b5552352b",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "a51871c8-6aac-4f8c-aaf0-1e0dcaf80a2a",
-            "niveau_id": "niv-confort",
+            "id": "val-prev-rente-26",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-rente-26",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "200%"
+            "commentaire": "10 % du salaire de référence",
+            "value": "10 % du salaire de référence",
+            "value_type": "percent_salary_reference_input",
+            "type": "percent_salary_reference_input",
+            "data_json": {
+                "percent": 10
+            }
         },
         {
-            "id": "v-c8eb0a7a-6f3e-4ca7-86ee-a625ac5bcfe6",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "a51871c8-6aac-4f8c-aaf0-1e0dcaf80a2a",
-            "niveau_id": "753c55d8-11f4-4d26-9eb8-605d7d2d61ba",
+            "id": "val-prev-rente-viagere",
+            "groupe_id": "grp-prev-deces-capital",
+            "act_id": "sub-prev-rente-viagere",
+            "niveau_id": "niv-prev-base",
             "kind": "base",
-            "mode": "libre",
+            "mode": "texte_libre",
             "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
+            "taux": null,
+            "montant": null,
             "unite": "inconnu",
-            "plafond_montant": 0,
+            "plafond_montant": null,
             "plafond_unite": null,
             "periodicite": null,
             "condition_json": null,
             "expression": "",
-            "commentaire": "200%"
-        },
-        {
-            "id": "v-89a406ef-eaaa-486e-a2b7-d7e049b59e48",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "ho333333-0001-4ccc-7c30-000000000001",
-            "niveau_id": "5dfa0ab1-02e1-45ef-9bfa-7e470fc7175b",
-            "kind": "base",
-            "mode": "libre",
-            "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
-            "unite": "inconnu",
-            "plafond_montant": 0,
-            "plafond_unite": null,
-            "periodicite": null,
-            "condition_json": null,
-            "expression": "",
-            "commentaire": "2.5%"
-        },
-        {
-            "id": "v-e3fb0df9-9a4d-4ecb-8903-0dc079ca77b7",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "ho333333-0001-4ccc-7c30-000000000001",
-            "niveau_id": "niv-confort",
-            "kind": "base",
-            "mode": "libre",
-            "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
-            "unite": "inconnu",
-            "plafond_montant": 0,
-            "plafond_unite": null,
-            "periodicite": null,
-            "condition_json": null,
-            "expression": "",
-            "commentaire": "2.5%"
-        },
-        {
-            "id": "v-7c9f898a-e3ca-40cc-b9f0-710318a33db7",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "ho333333-0001-4ccc-7c30-000000000001",
-            "niveau_id": "753c55d8-11f4-4d26-9eb8-605d7d2d61ba",
-            "kind": "base",
-            "mode": "libre",
-            "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
-            "unite": "inconnu",
-            "plafond_montant": 0,
-            "plafond_unite": null,
-            "periodicite": null,
-            "condition_json": null,
-            "expression": "",
-            "commentaire": "3%"
-        },
-        {
-            "id": "v-802fa09a-48de-40ec-9e5b-b2af6ac9efce",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "ho444444-0001-4ddd-7d40-000000000001",
-            "niveau_id": "5dfa0ab1-02e1-45ef-9bfa-7e470fc7175b",
-            "kind": "base",
-            "mode": "libre",
-            "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
-            "unite": "inconnu",
-            "plafond_montant": 0,
-            "plafond_unite": null,
-            "periodicite": null,
-            "condition_json": null,
-            "expression": "",
-            "commentaire": "100%"
-        },
-        {
-            "id": "v-c551f91a-4f91-41a6-ac28-f9e1fe41140a",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "ho444444-0001-4ddd-7d40-000000000001",
-            "niveau_id": "niv-confort",
-            "kind": "base",
-            "mode": "libre",
-            "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
-            "unite": "inconnu",
-            "plafond_montant": 0,
-            "plafond_unite": null,
-            "periodicite": null,
-            "condition_json": null,
-            "expression": "",
-            "commentaire": "100%"
-        },
-        {
-            "id": "v-0a8abf55-5205-466e-80b6-8d7fe2766d86",
-            "groupe_id": "f4564fe3-6a70-4e12-8841-2478c1709c8b",
-            "act_id": "ho444444-0001-4ddd-7d40-000000000001",
-            "niveau_id": "753c55d8-11f4-4d26-9eb8-605d7d2d61ba",
-            "kind": "base",
-            "mode": "libre",
-            "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
-            "unite": "inconnu",
-            "plafond_montant": 0,
-            "plafond_unite": null,
-            "periodicite": null,
-            "condition_json": null,
-            "expression": "",
-            "commentaire": "100%"
-        },
-        {
-            "id": "v-9fbcf05b-43ac-4999-8b2c-32d1940e220f",
-            "groupe_id": "81146dd5-eb6e-47b4-9fc3-cd21e971a6e5",
-            "act_id": "ac111111-0001-4aaa-8a10-000000000001",
-            "niveau_id": "5dfa0ab1-02e1-45ef-9bfa-7e470fc7175b",
-            "kind": "base",
-            "mode": "libre",
-            "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
-            "unite": "inconnu",
-            "plafond_montant": 0,
-            "plafond_unite": null,
-            "periodicite": null,
-            "condition_json": null,
-            "expression": "",
-            "commentaire": "100% TM"
-        },
-        {
-            "id": "v-75870541-eaa6-4f6a-91f4-81b974145e76",
-            "groupe_id": "29656c1a-3fbc-4797-9960-2bba20856bc6",
-            "act_id": "ho111111-0001-4aaa-7a10-000000000001",
-            "niveau_id": "5dfa0ab1-02e1-45ef-9bfa-7e470fc7175b",
-            "kind": "base",
-            "mode": "libre",
-            "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
-            "unite": "inconnu",
-            "plafond_montant": 0,
-            "plafond_unite": null,
-            "periodicite": null,
-            "condition_json": null,
-            "expression": "",
-            "commentaire": "200% BR"
-        },
-        {
-            "id": "v-09cfa7a8-ea53-4de4-b5b5-a4f2dc86a2bb",
-            "groupe_id": "29656c1a-3fbc-4797-9960-2bba20856bc6",
-            "act_id": "ho222222-0001-4bbb-7b20-000000000001",
-            "niveau_id": "5dfa0ab1-02e1-45ef-9bfa-7e470fc7175b",
-            "kind": "base",
-            "mode": "libre",
-            "base": "inconnu",
-            "taux": 0,
-            "montant": 0,
-            "unite": "inconnu",
-            "plafond_montant": 0,
-            "plafond_unite": null,
-            "periodicite": null,
-            "condition_json": null,
-            "expression": "",
-            "commentaire": "100%"
+            "commentaire": "Option disponible sur accord médical",
+            "value": "Option disponible sur accord médical",
+            "value_type": "free_text",
+            "type": "free_text",
+            "data_json": {
+                "label": "Sur demande"
+            }
         }
-    ]
+    ],
+
 
 
 };

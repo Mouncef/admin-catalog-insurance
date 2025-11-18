@@ -479,7 +479,7 @@ export default function ReadonlyGroupMatrix({
 
                         const renderActRow = (act, options = {}) => {
                             const subRows = subItemsMap?.get(act.id) || [];
-                            const indent = options.indent ? 'pl-6' : '';
+                            const indent = options.indent ? 'pl-12' : '';
                             return (
                                 <Fragment key={`${act.id}-${indent || 'root'}`}>
                                     <tr>
@@ -595,7 +595,7 @@ export default function ReadonlyGroupMatrix({
                                                         className="btn btn-xs btn-outline"
                                                         onClick={() => onAddCategoryLabel?.(cat)}
                                                     >
-                                                        + Regroupement
+                                                        + Groupe
                                                     </button>
                                                 )}
                                                 {editable && (
@@ -624,16 +624,17 @@ export default function ReadonlyGroupMatrix({
                                     <tr className="bg-base-200">
                                         <th colSpan={colDefs.length} className="text-left">
                                             <div className="flex items-center gap-2">
-                                                <div className="flex-1 border-t border-base-200 my-1"/>
                                                 {canAddLabel && (
                                                     <button
                                                         type="button"
                                                         className="btn btn-xs btn-outline"
                                                         onClick={() => onAddCategoryLabel?.(cat)}
                                                     >
-                                                        + Regroupement
+                                                        + Groupe
                                                     </button>
                                                 )}
+                                                <div className="flex-1 border-t border-base-200 my-1"/>
+
                                                 {editable && (
                                                     <div className="join">
                                                         <button
@@ -664,11 +665,10 @@ export default function ReadonlyGroupMatrix({
                                         <tr className="bg-base-100">
                                             <td colSpan={colDefs.length}>
                                                 <div className="font-semibold text-sm flex items-center gap-2">
-                                                    <span>Regroupement :</span>
                                                     <span>{bucket.label.libelle}</span>
-                                                    <span className="badge badge-sm">
+                                                    {/*<span className="badge badge-sm">
                                                         {bucket.acts.length} garantie{bucket.acts.length > 1 ? 's' : ''}
-                                                    </span>
+                                                    </span>*/}
                                                     {editable && (onEditCategoryLabel || onDeleteCategoryLabel) && (
                                                         <div className="ml-auto join">
                                                             {onEditCategoryLabel && (

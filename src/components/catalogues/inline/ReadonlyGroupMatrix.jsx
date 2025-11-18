@@ -5,12 +5,79 @@ import ValueEditorTyped from '@/components/catalogues/inline/ValueEditorTyped';
 import {coerceCellValue} from '@/lib/utils/CatalogueInline';
 import {isUngroupedCategoryId} from "@/lib/utils/categoryUtils";
 
-function CellView({v}) {
+const DEP_OPERATOR_SYMBOL = {
+    add: '+',
+    sub: '−',
+    mul: '×',
+    div: '÷',
+};
+
+const numberOrNull = (input) => {
+    if (input === '' || input === null || input === undefined) return null;
+    const num = Number(input);
+    return Number.isFinite(num) ? num : null;
+};
+
+const applyOperator = (operator, a, b) => {
+    if (a === null || b === null) return null;
+    switch (operator) {
+        case 'sub':
+            return a - b;
+        case 'mul':
+            return a * b;
+        case 'div':
+            if (b === 0) return null;
+            return a / b;
+        case 'add':
+        default:
+            return a + b;
+    }
+};
+
+const formatFormulaDescription = (dep, actLookup) => {
+    if (!dep || dep.mode !== 'formula' || !Array.isArray(dep.operands)) return '';
+    const symbol = DEP_OPERATOR_SYMBOL[dep.operator] || '+';
+    const parts = dep.operands.map((op) => {
+        const act = actLookup.get(op.act_id);
+        return act?.libelle || act?.code || op.act_id;
+    });
+    return parts.join(` ${symbol} `);
+};
+
+const formatNumber = (value) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return '';
+    const num = Number(value);
+    if (!Number.isFinite(num)) return '';
+    return Number.isInteger(num) ? String(num) : num.toFixed(2).replace(/\.00$/, '');
+};
+
+const parseNumericFromInput = (input) => {
+    if (typeof input === 'number' && Number.isFinite(input)) return input;
+    if (typeof input === 'string') {
+        const sanitized = input.replace(',', '.');
+        const match = sanitized.match(/-?\d+(?:\.\d+)?/);
+        if (match) return Number(match[0]);
+    }
+    return null;
+};
+
+const extractSuffixFromValue = (value) => {
+    if (typeof value !== 'string') return '';
+    const sanitized = value.replace(',', '.');
+    const match = sanitized.match(/-?\d+(?:\.\d+)?/);
+    if (!match) return value.trim();
+    const idx = sanitized.indexOf(match[0]);
+    if (idx === -1) return value.trim();
+    const suffix = sanitized.slice(idx + match[0].length).trim();
+    return suffix;
+};
+
+function CellView({v, dependencyText}) {
     const hasV = (v?.value || '').trim().length > 0;
     const hasE = (v?.expression || '').trim().length > 0;
     const minHint = v?.data?.min_hint;
     const maxHint = v?.data?.max_hint;
-    if (!hasV && !hasE) return <span className="opacity-40">—</span>;
+    if (!hasV && !hasE && !minHint && !maxHint && !dependencyText) return <span className="opacity-40">—</span>;
     return (
         <div className="min-h-8">
             {hasV && <div className="font-mono text-sm break-words">{v.value}</div>}
@@ -20,6 +87,9 @@ function CellView({v}) {
                     {minHint && <div>Min : {minHint}</div>}
                     {maxHint && <div>Max : {maxHint}</div>}
                 </div>
+            )}
+            {dependencyText && (
+                <div className="text-xs text-primary mt-1">{dependencyText}</div>
             )}
         </div>
     );
@@ -184,6 +254,113 @@ export default function ReadonlyGroupMatrix({
 
     const membersSet = useMemo(() => new Set(membresRows.map((m) => m.act_id)), [membresRows]);
 
+    const fallbackLevelId = combinedLevels?.[0]?.id || null;
+
+    const getCellForDependency = (dep) => {
+        if (!dep || !dep.act_id) return null;
+        const perAct = valuesByAct?.[dep.act_id];
+        if (!perAct) return null;
+        const levelId = dep.niveau_id || fallbackLevelId;
+        if (!levelId) return null;
+        const entry = perAct[levelId];
+        if (!entry) return null;
+        if (dep.kind === 'surco') return entry.surcoVal;
+        if (dep.kind === 'option') {
+            const optId = dep.option_level_id || levelId;
+            return entry.options?.[optId];
+        }
+        return entry.baseVal;
+    };
+
+    const cloneCellValue = (cell) => {
+        if (!cell) return null;
+        return {
+            ...cell,
+            data: cell.data ? {...cell.data} : undefined,
+        };
+    };
+
+    const extractNumbersFromCell = (cell) => {
+        if (!cell) return {value: null, min: null, max: null, suffix: ''};
+        const data = cell.data || {};
+        const preferredFields = ['amount', 'montant', 'value_numeric', 'valeur', 'percent', 'taux'];
+        let value = null;
+        for (const field of preferredFields) {
+            const num = parseNumericFromInput(data[field]);
+            if (num !== null) {
+                value = num;
+                break;
+            }
+        }
+        if (value === null) value = parseNumericFromInput(cell.value);
+        const suffix = value !== null ? extractSuffixFromValue(cell.value || '') : '';
+        const min = parseNumericFromInput(data.min_hint);
+        const max = parseNumericFromInput(data.max_hint);
+        return {value, min, max, suffix};
+    };
+
+    const getNumbersForOperand = (operand) => {
+        if (!operand) return {value: null, min: null, max: null, suffix: ''};
+        const manualValue = numberOrNull(operand.value);
+        const manualMin = numberOrNull(operand.min);
+        const manualMax = numberOrNull(operand.max);
+        const sourceCell = getCellForDependency(operand);
+        const fromCell = extractNumbersFromCell(sourceCell);
+        return {
+            value: manualValue ?? fromCell.value,
+            min: manualMin ?? fromCell.min,
+            max: manualMax ?? fromCell.max,
+            suffix: fromCell.suffix,
+            cell: sourceCell,
+        };
+    };
+
+    const evaluateFormulaDependency = (dep) => {
+        if (!dep || dep.mode !== 'formula') return null;
+        const operandNumbers = (dep.operands || []).map((operand) => getNumbersForOperand(operand));
+        if (!operandNumbers.length) return null;
+        let accValue = operandNumbers[0].value;
+        let accMin = operandNumbers[0].min ?? operandNumbers[0].value ?? null;
+        let accMax = operandNumbers[0].max ?? operandNumbers[0].value ?? null;
+        for (let i = 1; i < operandNumbers.length; i++) {
+            const operand = operandNumbers[i];
+            accValue = applyOperator(dep.operator, accValue, operand.value);
+            const operandMin = operand.min ?? operand.value ?? null;
+            const operandMax = operand.max ?? operand.value ?? null;
+            accMin = applyOperator(dep.operator, accMin, operandMin);
+            accMax = applyOperator(dep.operator, accMax, operandMax);
+        }
+        const suffix = operandNumbers.find((op) => op.suffix)?.suffix || '';
+        return {value: accValue, min: accMin, max: accMax, suffix};
+    };
+
+    const actLookup = useMemo(() => {
+        const map = new Map();
+        for (const [, list] of actsByCategory.entries()) {
+            for (const act of list) map.set(act.id, act);
+        }
+        return map;
+    }, [actsByCategory]);
+
+    const dependencyActOptions = useMemo(() => {
+        const seen = new Set();
+        const options = [];
+        for (const row of membresRows) {
+            if (seen.has(row.act_id)) continue;
+            seen.add(row.act_id);
+            const act = actLookup.get(row.act_id);
+            if (!act) continue;
+            const label = [act.code, act.libelle].filter(Boolean).join(' — ') || act.id;
+            options.push({value: act.id, label});
+        }
+        return options;
+    }, [membresRows, actLookup]);
+
+    const dependencyLevelOptions = useMemo(
+        () => (combinedLevels || []).map((lvl) => ({value: lvl.id, label: safeLevelLabel(lvl)})),
+        [combinedLevels]
+    );
+
     const baseHeaderItems = baseLevels.length ? baseLevels : combinedLevels;
     const surcoHeaderItems = useSeparateColumns
         ? (surcoLevels.length ? surcoLevels : baseHeaderItems)
@@ -343,6 +520,50 @@ export default function ReadonlyGroupMatrix({
 
         const canEdit = editable && !!actId && !!levelId;
         const highlight = isEditingCell ? 'bg-base-200/60' : '';
+        let dependencyText = null;
+        let displayValue = cellValue;
+        const depends = cellValue?.depends_on;
+        if (depends) {
+            if (depends.mode === 'formula') {
+                const evalResult = evaluateFormulaDependency(depends);
+                if (evalResult) {
+                    const suffix = evalResult.suffix ? ` ${evalResult.suffix}` : '';
+                    const nextData = {...(displayValue?.data || {})};
+                    if (evalResult.min != null) nextData.min_hint = `${formatNumber(evalResult.min)}${suffix}`;
+                    if (evalResult.max != null) nextData.max_hint = `${formatNumber(evalResult.max)}${suffix}`;
+                    displayValue = {
+                        ...displayValue,
+                        value: evalResult.value != null ? `${formatNumber(evalResult.value)}${suffix}` : displayValue?.value,
+                        data: nextData,
+                    };
+                }
+                const desc = formatFormulaDescription(depends, actLookup);
+                dependencyText = desc ? `↪ Formule (${desc})` : '↪ Formule';
+            } else if (depends.mode === 'percent') {
+                const source = getNumbersForOperand(depends);
+                if (source.value != null && depends.percent != null) {
+                    const computed = (source.value * depends.percent) / 100;
+                    const suffix = source.suffix ? ` ${source.suffix}` : '';
+                    const nextData = {...(displayValue?.data || {})};
+                    if (source.min != null) nextData.min_hint = `${formatNumber((source.min * depends.percent) / 100)}${suffix}`;
+                    if (source.max != null) nextData.max_hint = `${formatNumber((source.max * depends.percent) / 100)}${suffix}`;
+                    displayValue = {
+                        ...displayValue,
+                        value: `${formatNumber(computed)}${suffix}`,
+                        data: nextData,
+                    };
+                }
+                const target = actLookup.get(depends.act_id);
+                const targetLabel = target?.libelle || target?.code || depends.act_id;
+                dependencyText = `↪ ${depends.percent ?? ''}% de ${targetLabel}`.trim();
+            } else {
+                const sourceCell = cloneCellValue(getCellForDependency(depends));
+                if (sourceCell) displayValue = sourceCell;
+                const target = actLookup.get(depends.act_id);
+                const targetLabel = target?.libelle || target?.code || depends.act_id;
+                dependencyText = `↪ dépend de ${targetLabel}`;
+            }
+        }
 
         return (
             <td
@@ -351,7 +572,7 @@ export default function ReadonlyGroupMatrix({
                 onDoubleClick={() => canEdit && startEdit(act, level, columnKind, optionKey)}
                 title={canEdit && editable ? 'Double-clique pour éditer' : ''}
             >
-                <CellView v={cellValue}/>
+                <CellView v={displayValue} dependencyText={dependencyText}/>
             </td>
         );
     }
@@ -727,6 +948,9 @@ export default function ReadonlyGroupMatrix({
                         <ValueEditorTyped
                             value={editing.draft}
                             onChange={(next) => setEditing((prev) => prev ? ({...prev, draft: next}) : prev)}
+                            dependencyOptions={dependencyActOptions.filter((opt) => opt.value !== editing.actId)}
+                            dependencyLevelOptions={dependencyLevelOptions}
+                            defaultLevelId={editing.nivId}
                         />
                         <div className="modal-action">
                             <button type="button" className="btn" onClick={cancelEdit}>Annuler</button>

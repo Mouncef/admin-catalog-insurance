@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { normalizeDependency } from '@/lib/utils/dependency';
 
 export function uuid() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -163,6 +164,11 @@ export function sanitizeGvaleurs(arr) {
         };
 
         if (!v.groupe_id || !v.act_id || !v.niveau_id) continue;
+        const dep = normalizeDependency(raw.depends_on, {
+            levelId: v.niveau_id,
+            kind,
+        });
+        if (dep) v.depends_on = dep;
         const k = `${v.groupe_id}::${v.act_id}::${v.niveau_id}::${v.kind}`;
         if (seen.has(k)) continue;
         seen.add(k);

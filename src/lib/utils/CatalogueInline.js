@@ -1,5 +1,7 @@
 // utils/catalogueInline.js
 
+import {normalizeDependency} from '@/lib/utils/dependency';
+
 export function coerceCellValue(raw = {}) {
     const fallbackValue = raw?.value ?? raw?.commentaire ?? '';
     const value =
@@ -19,11 +21,14 @@ export function coerceCellValue(raw = {}) {
         data = type === 'free_text' ? {label: value} : {};
     }
 
+    const depends_on = normalizeDependency(raw?.depends_on);
+
     return {
         type,
         data,
         value,
         expression,
+        depends_on: depends_on || null,
     };
 }
 export function buildMembersSet(group, membres) {
@@ -102,7 +107,7 @@ export function normalizeCell(gid, actId, nivId, kind, mini) {
         typed.data && typeof typed.data === 'object' ? typed.data : {};
     const hasData = Object.keys(dataPayload).length > 0;
 
-    return {
+    const row = {
         id: rid,
         groupe_id: gid,
         act_id: actId,
@@ -126,4 +131,21 @@ export function normalizeCell(gid, actId, nivId, kind, mini) {
         data_json: hasData ? dataPayload : undefined,
         data: hasData ? dataPayload : undefined,
     };
+
+    const rawKind = String(kind || 'base').toLowerCase();
+    let columnKind = 'base';
+    let optionLevelId = null;
+    if (rawKind === 'surco') columnKind = 'surco';
+    else if (rawKind.startsWith('option')) {
+        columnKind = 'option';
+        optionLevelId = rawKind.slice('option-'.length) || nivId;
+    }
+    const dep = normalizeDependency(typed.depends_on, {
+        levelId: nivId,
+        kind: columnKind,
+        optionLevelId,
+    });
+    if (dep) row.depends_on = dep;
+
+    return row;
 }

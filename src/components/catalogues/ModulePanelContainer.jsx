@@ -647,6 +647,7 @@ export default function ModulePanelContainer({
 
     const cellHasContent = (cell) => {
         if (!cell) return false;
+        if (cell.depends_on && cell.depends_on.act_id) return true;
         const valueStr = typeof cell.value === 'string' ? cell.value.trim() : '';
         if (valueStr.length > 0) return true;
         const exprStr = typeof cell.expression === 'string' ? cell.expression.trim() : '';

@@ -121,7 +121,9 @@ export default function ReadonlyGroupMatrix({
                                                 onAddCategoryLabel,
                                                 onEditCategoryLabel,
                                                 onDeleteCategoryLabel,
+                                                onOpenTypeModal,
                                             }) {
+    const moduleRisk = normalizeRisk(module?.risque);
     const sortLevels = (list = []) =>
         list
             .slice()
@@ -804,83 +806,67 @@ export default function ReadonlyGroupMatrix({
                                 </Fragment>
                             );
                         };
+                        const allowTypeControls = moduleRisk === 'prevoyance' && typeof onOpenTypeModal === 'function';
+                        const groupSelectionBadge = allowTypeControls ? (
+                            <span className="badge badge-outline">
+                                {group.selection_type === 'checkbox' ? 'Sélection multiple' : 'Sélection unique'}
+                            </span>
+                        ) : null;
                         return (
                             <Fragment key={cat.id}>
-                                {!(cat?.libelle === 'Sans groupe' && (cat.isVirtual || isUngroupedCategoryId(cat.id))) ? (
-                                    <tr className="bg-base-200">
-                                        <th colSpan={colDefs.length} className="text-left">
-                                            <div className="flex items-center gap-2">
+                                <tr className="bg-base-200">
+                                    <th colSpan={colDefs.length} className="text-left">
+                                        <div className="flex items-center gap-2">
+                                            {!(cat?.libelle === 'Sans groupe' && (cat.isVirtual || isUngroupedCategoryId(cat.id))) ? (
                                                 <span className="opacity-70">{cat.libelle || '—'}</span>
-                                                {canAddLabel && (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-xs btn-outline"
-                                                        onClick={() => onAddCategoryLabel?.(cat)}
-                                                    >
-                                                        + Groupe
-                                                    </button>
-                                                )}
-                                                {editable && (
-                                                    <div className="ml-auto join">
-                                                        <button
-                                                            className="btn btn-xs join-item"
-                                                            disabled={isFirst}
-                                                            onClick={() => moveCategory(cat.id, 'up')}
-                                                            title="Monter la catégorie" aria-label="Monter la catégorie"
-                                                        >▲
-                                                        </button>
-                                                        <button
-                                                            className="btn btn-xs join-item"
-                                                            disabled={isLast}
-                                                            onClick={() => moveCategory(cat.id, 'down')}
-                                                            title="Descendre la catégorie"
-                                                            aria-label="Descendre la catégorie"
-                                                        >▼
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </th>
-                                    </tr>
-                                ) : (
-                                    <tr className="bg-base-200">
-                                        <th colSpan={colDefs.length} className="text-left">
-                                            <div className="flex items-center gap-2">
-                                                {canAddLabel && (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-xs btn-outline"
-                                                        onClick={() => onAddCategoryLabel?.(cat)}
-                                                    >
-                                                        + Groupe
-                                                    </button>
-                                                )}
+                                            ) : (
                                                 <div className="flex-1 border-t border-base-200 my-1"/>
-
-                                                {editable && (
-                                                    <div className="join">
+                                            )}
+                                            <div className="flex-1 ">
+                                                {allowTypeControls && (
+                                                    <>
+                                                        {groupSelectionBadge}
                                                         <button
-                                                            className="btn btn-xs join-item"
-                                                            disabled={isFirst}
-                                                            onClick={() => moveCategory(cat.id, 'up')}
-                                                            title="Monter la catégorie" aria-label="Monter la catégorie"
-                                                        >▲
+                                                            type="button"
+                                                            className="btn btn-xs btn-secondary mx-5"
+                                                            onClick={() => onOpenTypeModal?.(group)}
+                                                        >
+                                                            Type
                                                         </button>
-                                                        <button
-                                                            className="btn btn-xs join-item"
-                                                            disabled={isLast}
-                                                            onClick={() => moveCategory(cat.id, 'down')}
-                                                            title="Descendre la catégorie"
-                                                            aria-label="Descendre la catégorie"
-                                                        >▼
-                                                        </button>
-                                                    </div>
+                                                    </>
                                                 )}
-
+                                                {canAddLabel && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-xs btn-outline mx-5"
+                                                        onClick={() => onAddCategoryLabel?.(cat)}
+                                                    >
+                                                        + Groupe
+                                                    </button>
+                                                )}
                                             </div>
-                                        </th>
-                                    </tr>
-                                )}
+                                            {editable && (
+                                                <div className="ml-auto join">
+                                                    <button
+                                                        className="btn btn-xs join-item"
+                                                        disabled={isFirst}
+                                                        onClick={() => moveCategory(cat.id, 'up')}
+                                                        title="Monter la catégorie" aria-label="Monter la catégorie"
+                                                    >▲
+                                                    </button>
+                                                    <button
+                                                        className="btn btn-xs join-item"
+                                                        disabled={isLast}
+                                                        onClick={() => moveCategory(cat.id, 'down')}
+                                                        title="Descendre la catégorie"
+                                                        aria-label="Descendre la catégorie"
+                                                    >▼
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </th>
+                                </tr>
 
                                 {labelBuckets.map((bucket) => (
                                     <Fragment key={bucket.label.id}>

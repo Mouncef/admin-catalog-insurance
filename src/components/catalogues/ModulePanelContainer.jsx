@@ -919,24 +919,7 @@ export default function ModulePanelContainer({
                     <div key={g.id} className="card bg-base-100 shadow-md relative group">
                         <div className="card-body p-4">
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="flex items-center gap-2">
-                                    <div className="text-lg font-semibold">Groupe : {g.nom}</div>
-                                    {moduleRisk === 'prevoyance' && (
-                                        <>
-
-                                            <button
-                                                type="button"
-                                                className="btn btn-xs btn-secondary"
-                                                onClick={() => openTypeModal(g)}
-                                            >
-                                                Type
-                                            </button>
-                                            <span className="badge badge-outline">
-                                                {g.selection_type === 'checkbox' ? 'Sélection multiple' : 'Sélection unique'}
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
+                                <div className="text-lg font-semibold">Groupe : {g.nom}</div>
                                 {/*<div className="badge">Priorité {g.priorite}</div>*/}
                                 <div className="ml-auto join">
 
@@ -1020,6 +1003,7 @@ export default function ModulePanelContainer({
                                 onAddCategoryLabel={canManageLabels ? (cat) => openCategoryLabelModal(g, cat) : undefined}
                                 onEditCategoryLabel={canManageLabels ? (cat, label) => openEditCategoryLabel(g, cat, label) : undefined}
                                 onDeleteCategoryLabel={canManageLabels ? (cat, label) => deleteCategoryLabel(g, cat, label) : undefined}
+                                onOpenTypeModal={moduleRisk === 'prevoyance' ? openTypeModal : undefined}
                                 membres={membres}
                                 gvaleurs={gvaleurs}
                                 onSave={(payload) => saveGrid(g, payload)}

@@ -1,9 +1,15 @@
 # Repository Guidelines
 
 ## Structure du projet
-- Application Next.js 13 (app router) avec React, Tailwind et DaisyUI; routes dans `src/app`, composants partagés dans `src/components`, hooks/providers dans `src/hooks` et `src/providers`.
-- Données mockées dans `public/data.json` complétées par `defaultSettings`; l’état persistant transite par `MultiStorageProvider` (localStorage) d’où la nécessité de monter les providers avant tout accès aux référentiels.
+- Application Next.js 13 (app router) avec React, Tailwind et DaisyUI; routes dans `src/app`, composants partagés dans `src/components`, hooks/providers dans `src/hooks` et `src/providers`. `src/app/layout.js` embarque Navbar/Sidebar/Breadcrumbs/Footer autour de chaque écran.
+- Chaque `page.jsx` reste un composant **server** (sans `use client`) qui se contente de rendre un `*PageClient.jsx` co-localisé. Toute logique interactive, hooks `useRef*` et state résident dans ces Smart components; les sous-composants purement visuels restent dumb/presentational.
+- Données mockées dans `src/lib/settings/default.js` puis injectées dans `MultiStorageProvider` via `AppDataProvider` (`sourcesFromDefault`). `public/data.json` illustre une arborescence Offre → Catalogue → Modules pour les écrans de démonstration.
+- `MultiStorageProvider` hydrate/persiste chaque référentiel (`ref_*`, `catalogues_v1`, `offres_v1`, …) dans `localStorage`, offre `set/patch/reset`, et synchronise entre onglets; il doit toujours être monté avant d’utiliser les hooks référentiels.
 - Helpers `sanitize*` sécurisent les gros jeux de données (unicité des codes, tri) et s’appuient sur `normalizeRisk` pour aligner l’orthographe des risques.
+
+## Persistance & import/export
+- L’état applicatif vit uniquement dans `localStorage` (namespace `app:`). Toute mutation UI (création de modules, configuration des niveaux, sélection des collèges, etc.) est écrite via les hooks `useRef*`.
+- La Navbar expose l’export « app-like-default » (snapshot calqué sur `defaultSettings`) ainsi que l’import de dumps récents ou legacy (`app:`/`grp:`). Toujours passer par ces flux pour partager ou remettre l’environnement à zéro.
 
 ## Commandes build & dev
 - `npm run dev` : serveur Next.js (Turbopack) sur http://localhost:3000.
@@ -36,4 +42,3 @@
 codex resume 019a4eed-1d41-7391-8b7b-27e9ab918039
 codex resume 019a7860-e049-7c21-83f6-5a844dc660e2
 codex resume 019a7860-e049-7c21-83f6-5a844dc660e2
-

@@ -124,6 +124,17 @@ export default function ReadonlyGroupMatrix({
                                                 onOpenTypeModal,
                                             }) {
     const moduleRisk = normalizeRisk(module?.risque);
+    const isPlainObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+    const selectionTypeForCategory = (catId) => {
+        if (moduleRisk !== 'prevoyance') return 'radio';
+        if (catId && isPlainObject(group?.category_selection_types)) {
+            const specific = group.category_selection_types[catId];
+            if (specific === 'checkbox' || specific === 'radio') {
+                return specific;
+            }
+        }
+        return group?.selection_type === 'checkbox' ? 'checkbox' : 'radio';
+    };
     const sortLevels = (list = []) =>
         list
             .slice()
@@ -807,9 +818,10 @@ export default function ReadonlyGroupMatrix({
                             );
                         };
                         const allowTypeControls = moduleRisk === 'prevoyance' && typeof onOpenTypeModal === 'function';
+                        const selectionType = selectionTypeForCategory(cat.id);
                         const groupSelectionBadge = allowTypeControls ? (
                             <span className="badge badge-outline">
-                                {group.selection_type === 'checkbox' ? 'Sélection multiple' : 'Sélection unique'}
+                                {selectionType === 'checkbox' ? 'Sélection multiple' : 'Sélection unique'}
                             </span>
                         ) : null;
                         return (
@@ -829,7 +841,7 @@ export default function ReadonlyGroupMatrix({
                                                         <button
                                                             type="button"
                                                             className="btn btn-xs btn-secondary mx-5"
-                                                            onClick={() => onOpenTypeModal?.(group)}
+                                                            onClick={() => onOpenTypeModal?.(group, cat)}
                                                         >
                                                             Type
                                                         </button>

@@ -1,21 +1,5 @@
-'use client';
-
-import {useParams} from 'next/navigation';
-import {useRefCatalogues} from '@/providers/AppDataProvider';
-import {normalizeRisk} from '@/lib/utils/StringUtil';
-import VisualiserPageSante from './VisualiserPageSante';
-import VisualiserPagePrevoyance from './VisualiserPagePrevoyance';
+import VisualiserPageClient from "./VisualiserPageClient";
 
 export default function CatalogueViewerPage() {
-    const params = useParams();
-    const catalogueId = String(params?.catalogueId || '');
-    const {refCatalogues} = useRefCatalogues();
-
-    const catalogue = refCatalogues.find((c) => c.id === catalogueId);
-    const catalogueRisk = normalizeRisk(catalogue?.risque);
-
-    if (catalogueRisk === 'prevoyance') {
-        return <VisualiserPagePrevoyance catalogueId={catalogueId} />;
-    }
-    return <VisualiserPageSante catalogueId={catalogueId} />;
+    return <VisualiserPageClient />;
 }

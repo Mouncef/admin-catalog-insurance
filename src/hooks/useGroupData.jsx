@@ -56,6 +56,14 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
                 if (cleaned.length > 0) categoryGroups[catId] = cleaned;
             }
         }
+        const categorySelectionTypes = {};
+        if (isPlainObject(raw.category_selection_types)) {
+            for (const [catId, type] of Object.entries(raw.category_selection_types)) {
+                if (!catId) continue;
+                const normalized = type === 'checkbox' ? 'checkbox' : type === 'radio' ? 'radio' : null;
+                if (normalized) categorySelectionTypes[catId] = normalized;
+            }
+        }
         const selectionType = raw.selection_type === 'checkbox' ? 'checkbox' : 'radio';
         const g = {
             id: raw.id || uuid(),
@@ -69,6 +77,7 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
             sub_items: subItems,
             category_groups: categoryGroups,
             selection_type: selectionType,
+            category_selection_types: categorySelectionTypes,
         };
         if (!g.catalogue_id || !catalogueMap?.has(g.catalogue_id)) continue;
         if (!g.ref_module_id || !moduleMap?.has(g.ref_module_id)) continue;

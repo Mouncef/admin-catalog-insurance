@@ -10,6 +10,19 @@ import { normalizeRisk } from '@/lib/utils/StringUtil';
 import TarifsEditor from '@/components/catalogues/tarifs/TarifsEditor';
 import SubItemModal from '@/components/catalogues/inline/SubItemModal';
 
+const isPlainObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+const normalizeSelectionType = (value) => (value === 'checkbox' ? 'checkbox' : 'radio');
+const getSelectionTypeForCategory = (group, categoryId) => {
+    if (!group) return 'radio';
+    if (categoryId && isPlainObject(group.category_selection_types)) {
+        const specific = group.category_selection_types[categoryId];
+        if (specific === 'checkbox' || specific === 'radio') {
+            return specific;
+        }
+    }
+    return normalizeSelectionType(group.selection_type);
+};
+
 export default function ModulePanelContainer({
                                                  module,
                                                  catalogueId,
@@ -252,7 +265,7 @@ export default function ModulePanelContainer({
     const [tarifEditorGroupId, setTarifEditorGroupId] = useState(null);
     const [subItemModal, setSubItemModal] = useState(null); // { groupId, parentAct, subItem? }
     const [labelModal, setLabelModal] = useState(null); // { groupId, category, labelId, name, selectedActs, acts }
-    const [typeModal, setTypeModal] = useState(null); // { groupId, value }
+    const [typeModal, setTypeModal] = useState(null); // { groupId, categoryId?, value }
 
     const allowSubItems = false;
 
@@ -484,12 +497,16 @@ export default function ModulePanelContainer({
         setLabelModal(null);
     }
 
-    function openTypeModal(group) {
+    function openTypeModal(group, category = null) {
         if (moduleRisk !== 'prevoyance' || !group?.id) return;
+        const catId = category?.id || null;
         setTypeModal({
             groupId: group.id,
+            groupName: group.nom || '',
             name: group.nom || '',
-            value: group.selection_type === 'checkbox' ? 'checkbox' : 'radio',
+            categoryId: catId,
+            categoryName: category?.libelle || (catId ? 'Sans libellé' : ''),
+            value: getSelectionTypeForCategory(group, catId),
         });
     }
 
@@ -499,14 +516,35 @@ export default function ModulePanelContainer({
 
     function saveGroupType(value) {
         if (!typeModal?.groupId) return;
-        const selection = value || typeModal.value || 'radio';
+        const selection = normalizeSelectionType(value || typeModal.value || 'radio');
         setGroupes((prev) =>
-            (prev || []).map((g) =>
-                g.id === typeModal.groupId ? {...g, selection_type: selection} : g
-            )
+            (prev || []).map((g) => {
+                if (g.id !== typeModal.groupId) return g;
+                if (typeModal.categoryId) {
+                    const defaultType = normalizeSelectionType(g.selection_type);
+                    const currentMap = isPlainObject(g.category_selection_types) ? {...g.category_selection_types} : {};
+                    if (selection === defaultType) {
+                        delete currentMap[typeModal.categoryId];
+                    } else {
+                        currentMap[typeModal.categoryId] = selection;
+                    }
+                    const nextMap = Object.keys(currentMap).length ? currentMap : {};
+                    return {
+                        ...g,
+                        category_selection_types: nextMap,
+                    };
+                }
+                return {
+                    ...g,
+                    selection_type: selection,
+                };
+            })
         );
         setTypeModal(null);
-        showToast('success', 'Type de groupe mis à jour');
+        const scopeLabel = typeModal?.categoryName
+            ? `Type mis à jour pour ${typeModal.categoryName}`
+            : 'Type de groupe mis à jour';
+        showToast('success', scopeLabel);
     }
 
 
@@ -572,7 +610,10 @@ export default function ModulePanelContainer({
                 .sort((a, b) => (a.ordre || 0) - (b.ordre || 0) || a.code.localeCompare(b.code))
                 .map((c) => c.id),
             category_groups: groupe.category_groups || {},
-            selection_type: groupe.selection_type === 'checkbox' ? 'checkbox' : 'radio',
+            selection_type: normalizeSelectionType(groupe.selection_type),
+            category_selection_types: isPlainObject(groupe.category_selection_types)
+                ? {...groupe.category_selection_types}
+                : {},
         };
         setGroupes([...(groupes || []), payload]);
 
@@ -603,7 +644,10 @@ export default function ModulePanelContainer({
                     nom: String(groupe.nom || '').trim(),
                     priorite: Number(groupe.priorite) || 100,
                     category_groups: groupe.category_groups || {},
-                    selection_type: g.selection_type || 'radio',
+                    selection_type: normalizeSelectionType(g.selection_type),
+                    category_selection_types: isPlainObject(g.category_selection_types)
+                        ? {...g.category_selection_types}
+                        : {},
                 } : g
             )
         );
@@ -1046,8 +1090,13 @@ export default function ModulePanelContainer({
                 <div className="modal modal-open">
                     <div className="modal-box max-w-2xl">
                         <h3 className="font-bold text-lg">
-                            Type du groupe — {typeModal.name || 'Sans titre'}
+                            {typeModal.categoryId
+                                ? `Type — ${typeModal.categoryName || 'Sans groupe'}`
+                                : `Type du groupe — ${typeModal.groupName || 'Sans titre'}`}
                         </h3>
+                        <p className="text-sm opacity-70 mt-1">
+                            Groupe : {typeModal.groupName || 'Sans titre'}
+                        </p>
                         <div className="space-y-3 mt-4">
                             <div className="border border-base-200 rounded-box p-4">
                                 <div className="flex flex-col gap-2 text-sm">

@@ -160,6 +160,17 @@ function ViewerModulePanel({
                         if (!subItemsByParent.has(si.parent_act_id)) subItemsByParent.set(si.parent_act_id, []);
                         subItemsByParent.get(si.parent_act_id).push(si);
                     }
+                    const selectionTypes = new Set([g.selection_type === 'checkbox' ? 'checkbox' : 'radio']);
+                    if (g.category_selection_types && typeof g.category_selection_types === 'object' && !Array.isArray(g.category_selection_types)) {
+                        Object.values(g.category_selection_types).forEach((val) => {
+                            if (val === 'checkbox' || val === 'radio') selectionTypes.add(val);
+                        });
+                    }
+                    const badgeLabel = selectionTypes.size > 1
+                        ? 'Mixte (catégorie)'
+                        : selectionTypes.has('checkbox')
+                            ? 'CheckBox'
+                            : 'Bouton radio';
                     return (
                         <div key={g.id} className="card bg-base-200/40 shadow-sm mb-4">
                             <div className="card-body p-4">
@@ -170,7 +181,7 @@ function ViewerModulePanel({
                                         </div>
                                         {moduleRisk === 'prevoyance' && (
                                             <span className="badge badge-outline">
-                                                {g.selection_type === 'checkbox' ? 'CheckBox' : 'Bouton radio'}
+                                                {badgeLabel}
                                             </span>
                                         )}
                                     </div>

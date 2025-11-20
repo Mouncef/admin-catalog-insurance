@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRefModules } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep, normalizeRisk } from "@/lib/utils/StringUtil"
 import { SquarePen, Trash2 } from "lucide-react"
-import {usePermissions} from '@/providers/AuthProvider';
+import {usePermissions, useAuth} from '@/providers/AuthProvider';
+import {applyCreateAudit, applyUpdateAudit, applyDeleteAudit, ensureAuditFields} from '@/lib/utils/audit';
 
 const RISK_OPTIONS = [
     { value: 'sante', label: 'Santé' },
@@ -33,6 +34,7 @@ export default function ModulesPageClient() {
     const [editing, setEditing] = useState(null) // module en édition
     const [candidateDelete, setCandidateDelete] = useState(null)
     const {canCreate, canUpdate, canDelete} = usePermissions();
+    const {user} = useAuth();
     const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
@@ -44,19 +46,22 @@ export default function ModulesPageClient() {
     }
 
     function sanitizeModules(arr) {
-        // Nettoyage simple — on ignore complètement "ordre"
-        const cleaned = (arr ?? [])
+        return (arr ?? [])
             .filter(Boolean)
             .map((m) => ({
+                ...m,
                 id: m.id || uuid(),
                 code: (m.code || '').trim(),
                 libelle: (m.libelle || '').trim(),
                 risque: normalizeRisk(m.risque),
+                createdAt: m.createdAt,
+                createdBy: m.createdBy,
+                updatedAt: m.updatedAt,
+                updatedBy: m.updatedBy,
+                deletedAt: m.deletedAt ?? null,
+                deletedBy: m.deletedBy ?? null,
             }))
-
-        // Unicité du code (insensible à la casse) via fusion plutôt que renommage
-        // -> On laisse submitUpsert empêcher les doublons; ici on supprime juste les entrées vides.
-        return cleaned.filter((m) => !!m.code)
+            .filter((m) => !!m.code)
     }
 
     function showToast(type, msg) {
@@ -65,7 +70,8 @@ export default function ModulesPageClient() {
     }
 
     // ======= Sélecteurs/mémos =======
-    const modules = useMemo(() => sanitizeModules(refModules || []), [refModules])
+    const modulesRaw = useMemo(() => sanitizeModules(refModules || []), [refModules])
+    const modules = useMemo(() => modulesRaw.filter((m) => !m.deletedAt), [modulesRaw])
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
@@ -92,6 +98,13 @@ export default function ModulesPageClient() {
     // Reset/clamp page quand filtres changent
     useEffect(() => { setPage(1) }, [query, sortAsc, riskFilter])
     useEffect(() => { if (page > totalPages) setPage(totalPages) }, [totalPages, page])
+    useEffect(() => {
+        if (!mounted) return;
+        const needsMigration = (refModules || []).some((m) => !m.createdAt);
+        if (needsMigration) {
+            setRefModules((prev) => (prev || []).map((m) => ensureAuditFields(m)));
+        }
+    }, [mounted, refModules, setRefModules])
 
     // ======= CRUD =======
     function submitUpsert(e) {
@@ -111,8 +124,8 @@ export default function ModulesPageClient() {
         if (!code) return showToast('error', 'Le code est requis')
         if (code.length > 40) return showToast('error', 'Code ≤ 40 caractères')
 
-        const duplicate = modules.find(
-            (m) => m.code.toLowerCase() === code.toLowerCase() && m.id !== editing.id
+        const duplicate = modulesRaw.some(
+            (m) => !m.deletedAt && m.code.toLowerCase() === code.toLowerCase() && m.id !== editing.id
         )
         if (duplicate) return showToast('error', `Le code "${code}" existe déjà`)
 
@@ -120,15 +133,13 @@ export default function ModulesPageClient() {
         const risque = normalizeRisk(editing.risque)
 
         if (!editing.id) {
-            // create (sans ordre)
-            const created = { id: uuid(), code, libelle, risque }
-            const next = sanitizeModules([...modules, created])
-            setRefModules(next) // <-- persiste via provider -> localStorage
+            const created = applyCreateAudit({ id: uuid(), code, libelle, risque, deletedAt: null, deletedBy: null }, user)
+            const next = sanitizeModules([...modulesRaw, created])
+            setRefModules(next)
             showToast('success', 'Module créé')
         } else {
-            // update (sans ordre)
             const next = sanitizeModules(
-                modules.map((m) => (m.id === editing.id ? { ...m, code, libelle, risque } : m))
+                modulesRaw.map((m) => (m.id === editing.id ? applyUpdateAudit({ ...m, code, libelle, risque }, user) : m))
             )
             setRefModules(next)
             showToast('success', 'Module mis à jour')
@@ -153,7 +164,9 @@ export default function ModulesPageClient() {
             showToast('error', 'Suppression non autorisée pour votre rôle.')
             return
         }
-        const next = sanitizeModules(modules.filter((m) => m.id !== candidateDelete.id))
+        const next = sanitizeModules(
+            modulesRaw.map((m) => (m.id === candidateDelete.id ? applyDeleteAudit(m, user) : m))
+        )
         setRefModules(next)
         showToast('success', 'Module supprimé')
         deleteDialogRef.current?.close()
@@ -167,7 +180,7 @@ export default function ModulesPageClient() {
 
     // ======= Import/Export =======
     function exportJSON() {
-        const data = JSON.stringify(modules, null, 2) // sans ordre
+        const data = JSON.stringify(modulesRaw, null, 2)
         const blob = new Blob([data], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -178,10 +191,18 @@ export default function ModulesPageClient() {
     }
 
     function triggerImport() {
+        if (!canUpdate) {
+            showToast('error', 'Import non autorisé pour votre rôle.')
+            return
+        }
         importInputRef.current?.click()
     }
 
     function onImportFileChange(e) {
+        if (!canUpdate) {
+            showToast('error', 'Import non autorisé pour votre rôle.')
+            return
+        }
         const file = e.target.files?.[0]
         if (!file) return
         const reader = new FileReader()
@@ -189,7 +210,7 @@ export default function ModulesPageClient() {
             try {
                 const parsed = JSON.parse(String(reader.result))
                 if (!Array.isArray(parsed)) throw new Error('JSON attendu: tableau de modules')
-                const merged = mergeKeepingUniqueCodes(modules, parsed)
+                const merged = mergeKeepingUniqueCodes(modulesRaw, parsed)
                 setRefModules(sanitizeModules(merged))
                 showToast('success', 'Import réussi')
             } catch (err) {
@@ -212,11 +233,17 @@ export default function ModulesPageClient() {
                 code: String(raw.code || '').trim(),
                 libelle: String(raw.libelle || '').trim(),
                 risque: normalizeRisk(raw.risque),
+                createdAt: raw.createdAt,
+                createdBy: raw.createdBy,
+                updatedAt: raw.updatedAt,
+                updatedBy: raw.updatedBy,
+                deletedAt: raw.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? null,
             }
             if (!item.code) continue
             const k = item.code.toLowerCase()
             const existing = byCode.get(k) || {}
-            const merged = { ...existing, ...item }
+            const merged = ensureAuditFields({ ...existing, ...item })
             merged.risque = normalizeRisk(item.risque ?? existing.risque)
             byCode.set(k, merged)
         }
@@ -229,8 +256,8 @@ export default function ModulesPageClient() {
             return
         }
         if (!confirm('Supprimer tous les modules stockés ?')) return
-        setRefModules([])
-        showToast('info', 'Liste vidée')
+        setRefModules((prev) => sanitizeModules((prev || []).map((m) => applyDeleteAudit(m, user))))
+        showToast('info', 'Référentiel vidé')
     }
 
     if (!mounted) {

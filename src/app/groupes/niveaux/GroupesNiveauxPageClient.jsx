@@ -9,7 +9,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRefNiveauSets } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep, normalizeRisk } from '@/lib/utils/StringUtil'
 import { SquarePen, Trash2 } from 'lucide-react'
-import {usePermissions} from '@/providers/AuthProvider';
+import {useAuth, usePermissions} from '@/providers/AuthProvider';
+import {applyCreateAudit, applyDeleteAudit, applyUpdateAudit, ensureAuditFields} from '@/lib/utils/audit';
 
 const RISK_OPTIONS = [
     { value: 'sante', label: 'Santé' },
@@ -37,9 +38,17 @@ export default function GroupesNiveauxPageClient() {
     const [editing, setEditing] = useState(null)
     const [candidateDelete, setCandidateDelete] = useState(null)
     const {canCreate, canUpdate, canDelete} = usePermissions();
+    const {user} = useAuth();
     const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
+    useEffect(() => {
+        if (!mounted) return
+        const needsMigration = (refNiveauSets || []).some((set) => !set?.createdAt)
+        if (needsMigration) {
+            setRefNiveauSets((prev) => sanitizeSets(prev || []))
+        }
+    }, [mounted, refNiveauSets, setRefNiveauSets])
 
     // ===== Utils =====
     function uuid() {
@@ -63,14 +72,20 @@ export default function GroupesNiveauxPageClient() {
             const key = code.toLowerCase()
             if (seen.has(key)) continue
             seen.add(key)
-            list.push({
+            list.push(ensureAuditFields({
                 id: raw.id || uuid(),
                 code,
                 libelle: String(raw.libelle || '').trim(),
                 ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : undefined,
                 is_enabled: typeof raw.is_enabled === 'boolean' ? raw.is_enabled : true,
                 risque: normalizeRisk(raw.risque),
-            })
+                createdAt: raw.createdAt,
+                createdBy: raw.createdBy,
+                updatedAt: raw.updatedAt,
+                updatedBy: raw.updatedBy,
+                deletedAt: raw.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? null,
+            }))
         }
 
         // 2) tri (ordre puis code) + réindexation 1..n
@@ -79,10 +94,13 @@ export default function GroupesNiveauxPageClient() {
         return list
     }
 
+    const setsRaw = useMemo(() => sanitizeSets(refNiveauSets || []), [refNiveauSets])
+    const sets = useMemo(() => setsRaw.filter((set) => !set.deletedAt), [setsRaw])
+
     // ===== Dérivés (filtre/tri/pagination) =====
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
-        let base = [...refNiveauSets]
+        let base = [...sets]
         base.sort((a, b) => {
             const cmp = ((a.ordre || 0) - (b.ordre || 0)) || a.code.localeCompare(b.code)
             return sortAsc ? cmp : -cmp
@@ -95,7 +113,7 @@ export default function GroupesNiveauxPageClient() {
             (s.code || '').toLowerCase().includes(q) ||
             (s.libelle || '').toLowerCase().includes(q)
         )
-    }, [refNiveauSets, query, sortAsc, riskFilter])
+    }, [sets, query, sortAsc, riskFilter])
 
     const totalItems = filtered.length
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
@@ -109,7 +127,7 @@ export default function GroupesNiveauxPageClient() {
 
     // ===== CRUD =====
     function nextOrdre() {
-        return (refNiveauSets.length || 0) + 1
+        return (sets.length || 0) + 1
     }
 
     function openCreate() {
@@ -148,7 +166,7 @@ export default function GroupesNiveauxPageClient() {
         if (!code) return showToast('error', 'Le code est requis')
         if (code.length > 20) return showToast('error', 'Code ≤ 20 caractères')
 
-        const exists = refNiveauSets.find((n) => n.code.toLowerCase() === code.toLowerCase() && n.id !== editing.id)
+        const exists = sets.find((n) => n.code.toLowerCase() === code.toLowerCase() && n.id !== editing.id)
         if (exists) return showToast('error', `Le code "${code}" existe déjà`)
 
         const libelle = (editing.libelle || '').trim()
@@ -157,11 +175,11 @@ export default function GroupesNiveauxPageClient() {
         const risque = normalizeRisk(editing.risque)
 
         if (!editing.id) {
-            const created = { id: uuid(), code, libelle, ordre, is_enabled, risque }
-            setRefNiveauSets(sanitizeSets([...refNiveauSets, created]))
+            const created = applyCreateAudit({ id: uuid(), code, libelle, ordre, is_enabled, risque, deletedAt: null, deletedBy: null }, user)
+            setRefNiveauSets(sanitizeSets([...(setsRaw || []), created]))
             showToast('success', 'Set créé')
         } else {
-            const nextArr = refNiveauSets.map((n) => (n.id === editing.id ? { ...n, code, libelle, ordre, is_enabled, risque } : n))
+            const nextArr = (setsRaw || []).map((n) => (n.id === editing.id ? applyUpdateAudit({ ...n, code, libelle, ordre, is_enabled, risque }, user) : n))
             setRefNiveauSets(sanitizeSets(nextArr))
             showToast('success', 'Set mis à jour')
         }
@@ -185,7 +203,8 @@ export default function GroupesNiveauxPageClient() {
             showToast('error', 'Suppression non autorisée pour votre rôle.')
             return
         }
-        setRefNiveauSets(sanitizeSets(refNiveauSets.filter((n) => n.id !== candidateDelete.id)))
+        const next = (setsRaw || []).map((n) => n.id === candidateDelete.id ? applyDeleteAudit(n, user) : n)
+        setRefNiveauSets(sanitizeSets(next))
         showToast('success', 'Set supprimé')
         deleteDialogRef.current?.close()
         setCandidateDelete(null)
@@ -202,7 +221,7 @@ export default function GroupesNiveauxPageClient() {
             return
         }
         // Réordonne globalement, puis réindexe
-        const siblings = [...refNiveauSets].sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
+        const siblings = [...sets].sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
         const ids = siblings.map((s) => s.id)
         const idx = ids.indexOf(row.id)
         if (idx < 0) return
@@ -211,14 +230,15 @@ export default function GroupesNiveauxPageClient() {
 
         const idA = ids[idx]
         const idB = ids[targetIdx]
-        const next = [...refNiveauSets]
-        const a = next.find((x) => x.id === idA)
-        const b = next.find((x) => x.id === idB)
+        const a = setsRaw.find((x) => x.id === idA)
+        const b = setsRaw.find((x) => x.id === idB)
         if (!a || !b) return
 
-        const tmp = a.ordre
-        a.ordre = b.ordre
-        b.ordre = tmp
+        const next = (setsRaw || []).map((entry) => {
+            if (entry.id === a.id) return applyUpdateAudit({ ...entry, ordre: b.ordre }, user)
+            if (entry.id === b.id) return applyUpdateAudit({ ...entry, ordre: a.ordre }, user)
+            return entry
+        })
         setRefNiveauSets(sanitizeSets(next))
     }
 
@@ -227,13 +247,15 @@ export default function GroupesNiveauxPageClient() {
             showToast('error', 'Modification non autorisée pour votre rôle.')
             return
         }
-        const next = refNiveauSets.map((n) => (n.id === row.id ? { ...n, is_enabled: !n.is_enabled } : n))
+        const next = (setsRaw || []).map((n) =>
+            n.id === row.id ? applyUpdateAudit({ ...n, is_enabled: !n.is_enabled }, user) : n
+        )
         setRefNiveauSets(sanitizeSets(next))
     }
 
     // ===== Import / Export =====
     function exportJSON() {
-        const data = JSON.stringify(refNiveauSets, null, 2)
+        const data = JSON.stringify(setsRaw, null, 2)
         const blob = new Blob([data], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -263,7 +285,7 @@ export default function GroupesNiveauxPageClient() {
             try {
                 const incoming = JSON.parse(String(reader.result))
                 if (!Array.isArray(incoming)) throw new Error('JSON attendu: tableau de sets')
-                const merged = mergeKeepingUniqueCode(refNiveauSets, incoming)
+                const merged = mergeKeepingUniqueCode(setsRaw, incoming)
                 setRefNiveauSets(sanitizeSets(merged))
                 showToast('success', 'Import réussi')
             } catch (err) {
@@ -278,20 +300,28 @@ export default function GroupesNiveauxPageClient() {
 
     function mergeKeepingUniqueCode(existing, incoming) {
         const keyOf = (n) => String(n.code || '').trim().toLowerCase()
-        const map = new Map(existing.map((n) => [keyOf(n), n]))
-        for (const raw of incoming) {
+        const map = new Map((existing || []).map((n) => [keyOf(n), ensureAuditFields(n)]))
+        for (const raw of incoming || []) {
             if (!raw) continue
-            const item = {
-                id: raw.id || uuid(),
-                code: String(raw.code || '').trim(),
+            const code = String(raw.code || '').trim()
+            if (!code) continue
+            const key = code.toLowerCase()
+            const prev = map.get(key)
+            const merged = ensureAuditFields({
+                ...(prev || { id: raw.id || uuid(), code }),
+                code,
                 libelle: String(raw.libelle || '').trim(),
                 ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : undefined,
                 is_enabled: typeof raw.is_enabled === 'boolean' ? raw.is_enabled : true,
-                risque: normalizeRisk(raw.risque),
-            }
-            if (!item.code) continue
-            const prev = map.get(keyOf(item)) || {}
-            map.set(keyOf(item), { ...prev, ...item, risque: normalizeRisk(item.risque ?? prev.risque) })
+                risque: normalizeRisk(raw.risque ?? prev?.risque),
+                createdAt: raw.createdAt || prev?.createdAt,
+                createdBy: raw.createdBy || prev?.createdBy,
+                updatedAt: raw.updatedAt || prev?.updatedAt,
+                updatedBy: raw.updatedBy || prev?.updatedBy,
+                deletedAt: raw.deletedAt ?? prev?.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? prev?.deletedBy ?? null,
+            })
+            map.set(key, merged)
         }
         return Array.from(map.values())
     }
@@ -302,7 +332,8 @@ export default function GroupesNiveauxPageClient() {
             return
         }
         if (!confirm('Supprimer tous les sets du référentiel ?')) return
-        setRefNiveauSets([])
+        const next = (setsRaw || []).map((row) => row.deletedAt ? row : applyDeleteAudit(row, user))
+        setRefNiveauSets(sanitizeSets(next))
         showToast('info', 'Référentiel vidé')
     }
 
@@ -570,7 +601,7 @@ export default function GroupesNiveauxPageClient() {
 
             {/* Footer helper */}
             <div className="opacity-60 text-xs">
-                <span className="font-mono">localStorage</span> clé: <span className="font-mono">{LS_SETS}</span> — {refNiveauSets.length} sets
+                <span className="font-mono">localStorage</span> clé: <span className="font-mono">{LS_SETS}</span> — {sets.length} sets actifs
             </div>
         </div>
     )

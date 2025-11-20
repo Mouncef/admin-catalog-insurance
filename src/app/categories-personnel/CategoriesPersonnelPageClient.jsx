@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { SquarePen, Trash2 } from "lucide-react";
 import { useRefCatPersonnel } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep } from '@/lib/utils/StringUtil'
-import {usePermissions} from '@/providers/AuthProvider';
+import {useAuth, usePermissions} from '@/providers/AuthProvider';
+import {applyCreateAudit, applyDeleteAudit, applyUpdateAudit, ensureAuditFields} from '@/lib/utils/audit';
 
 export default function CategoriesPersonnelPageClient() {
     const { refCatPersonnel, setRefCatPersonnel } = useRefCatPersonnel()
@@ -22,9 +23,17 @@ export default function CategoriesPersonnelPageClient() {
     const [editing, setEditing] = useState(null)
     const [candidateDelete, setCandidateDelete] = useState(null)
     const {canCreate, canUpdate, canDelete} = usePermissions();
+    const {user} = useAuth();
     const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
+    useEffect(() => {
+        if (!mounted) return;
+        const needsMigration = (refCatPersonnel || []).some((c) => !c?.createdAt);
+        if (needsMigration) {
+            setRefCatPersonnel((prev) => sanitizeList(prev || []));
+        }
+    }, [mounted, refCatPersonnel, setRefCatPersonnel])
 
     // ===== Utils =====
     function uuid() {
@@ -37,12 +46,18 @@ export default function CategoriesPersonnelPageClient() {
     }
 
     function sanitizeList(arr) {
-        const list = (arr || []).map(raw => ({
+        const list = (arr || []).map(raw => ensureAuditFields({
             id: raw?.id || uuid(),
             code: String(raw?.code || '').trim(),
             libelle: String(raw?.libelle || '').trim(),
             ordre: Number.isFinite(Number(raw?.ordre)) ? Number(raw.ordre) : undefined,
-            is_enabled: typeof raw?.is_enabled === 'boolean' ? raw.is_enabled : true
+            is_enabled: typeof raw?.is_enabled === 'boolean' ? raw.is_enabled : true,
+            createdAt: raw?.createdAt,
+            createdBy: raw?.createdBy,
+            updatedAt: raw?.updatedAt,
+            updatedBy: raw?.updatedBy,
+            deletedAt: raw?.deletedAt ?? null,
+            deletedBy: raw?.deletedBy ?? null,
         }))
         // unicité code (CI) + tri + reindex ordre
         const seen = new Set()
@@ -63,20 +78,23 @@ export default function CategoriesPersonnelPageClient() {
         return cleaned.map((it, i) => ({ ...it, ordre: i + 1 }))
     }
     function nextOrdre() {
-        return (refCatPersonnel?.length || 0) + 1
+        return ((categoriesRaw || []).filter((cat) => !cat.deletedAt).length || 0) + 1
     }
 
     // ===== Filtre / tri / pagination =====
+    const categoriesRaw = useMemo(() => sanitizeList(refCatPersonnel || []), [refCatPersonnel])
+    const categories = useMemo(() => categoriesRaw.filter((cat) => !cat.deletedAt), [categoriesRaw])
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
-        let base = [...refCatPersonnel].sort((a, b) =>
+        let base = [...categories].sort((a, b) =>
             (sortAsc ? 1 : -1) * ((a.ordre || 0) - (b.ordre || 0) || a.code.localeCompare(b.code))
         )
         if (!q) return base
         return base.filter(x =>
             x.code.toLowerCase().includes(q) || (x.libelle || '').toLowerCase().includes(q)
         )
-    }, [refCatPersonnel, query, sortAsc])
+    }, [categories, query, sortAsc])
 
     const totalItems = filtered.length
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
@@ -120,7 +138,7 @@ export default function CategoriesPersonnelPageClient() {
         if (!code) return showToast('error', 'Code requis')
         if (code.length > 80) return showToast('error', 'Code ≤ 80 caractères')
 
-        const exists = refCatPersonnel.find(x => x.code.toLowerCase() === code.toLowerCase() && x.id !== editing.id)
+        const exists = categories.some(x => x.code.toLowerCase() === code.toLowerCase() && x.id !== editing.id)
         if (exists) return showToast('error', `Le code "${code}" existe déjà`)
 
         const libelle = (editing.libelle || '').trim()
@@ -128,12 +146,12 @@ export default function CategoriesPersonnelPageClient() {
         const ordre = Number.isFinite(Number(editing.ordre)) ? Number(editing.ordre) : nextOrdre()
 
         if (!editing.id) {
-            const created = { id: uuid(), code, libelle, ordre, is_enabled }
-            setRefCatPersonnel(sanitizeList([...(refCatPersonnel || []), created]))
+            const created = applyCreateAudit({ id: uuid(), code, libelle, ordre, is_enabled, deletedAt: null, deletedBy: null }, user)
+            setRefCatPersonnel(sanitizeList([...(categoriesRaw || []), created]))
             showToast('success', 'Catégorie créée')
         } else {
-            const next = (refCatPersonnel || []).map(it => it.id === editing.id
-                ? { ...it, code, libelle, ordre, is_enabled }
+            const next = (categoriesRaw || []).map(it => it.id === editing.id
+                ? applyUpdateAudit({ ...it, code, libelle, ordre, is_enabled }, user)
                 : it
             )
             setRefCatPersonnel(sanitizeList(next))
@@ -155,7 +173,7 @@ export default function CategoriesPersonnelPageClient() {
             showToast('error', 'Suppression non autorisée pour votre rôle.')
             return
         }
-        const next = (refCatPersonnel || []).filter(x => x.id !== candidateDelete.id)
+        const next = (categoriesRaw || []).map((x) => x.id === candidateDelete.id ? applyDeleteAudit(x, user) : x)
         setRefCatPersonnel(sanitizeList(next))
         showToast('success', 'Catégorie supprimée')
         deleteDialogRef.current?.close(); setCandidateDelete(null)
@@ -168,15 +186,19 @@ export default function CategoriesPersonnelPageClient() {
             showToast('error', 'Modification non autorisée pour votre rôle.')
             return
         }
-        const ids = [...refCatPersonnel].sort((a, b) => a.ordre - b.ordre).map(x => x.id)
+        const ids = [...categories].sort((a, b) => a.ordre - b.ordre).map(x => x.id)
         const idx = ids.indexOf(item.id)
         if (idx < 0) return
         const j = dir === 'up' ? idx - 1 : idx + 1
         if (j < 0 || j >= ids.length) return
-        const next = [...refCatPersonnel]
-        const a = next.find(x => x.id === ids[idx])
-        const b = next.find(x => x.id === ids[j])
-        const t = a.ordre; a.ordre = b.ordre; b.ordre = t
+        const a = categoriesRaw.find((x) => x.id === ids[idx])
+        const b = categoriesRaw.find((x) => x.id === ids[j])
+        if (!a || !b) return
+        const next = (categoriesRaw || []).map((x) => {
+            if (x.id === a.id) return applyUpdateAudit({ ...x, ordre: b.ordre }, user)
+            if (x.id === b.id) return applyUpdateAudit({ ...x, ordre: a.ordre }, user)
+            return x
+        })
         setRefCatPersonnel(sanitizeList(next))
     }
     function toggleEnabled(item) {
@@ -184,8 +206,10 @@ export default function CategoriesPersonnelPageClient() {
             showToast('error', 'Modification non autorisée pour votre rôle.')
             return
         }
-        const next = (refCatPersonnel || []).map(x => x.id === item.id ? { ...x, is_enabled: !x.is_enabled } : x)
-        setRefCatPersonnel(next)
+        const next = (categoriesRaw || []).map((x) =>
+            x.id === item.id ? applyUpdateAudit({ ...x, is_enabled: !x.is_enabled }, user) : x
+        )
+        setRefCatPersonnel(sanitizeList(next))
     }
     function resetAll() {
         if (!canDelete) {
@@ -193,7 +217,10 @@ export default function CategoriesPersonnelPageClient() {
             return
         }
         if (!confirm('Vider toutes les catégories de personnel ?')) return
-        setRefCatPersonnel([])
+        const next = (categoriesRaw || []).map((cat) =>
+            cat.deletedAt ? cat : applyDeleteAudit(cat, user)
+        )
+        setRefCatPersonnel(sanitizeList(next))
         showToast('info', 'Liste vidée')
     }
 
@@ -408,7 +435,7 @@ export default function CategoriesPersonnelPageClient() {
             )}
 
             <div className="opacity-60 text-xs">
-                Clé <span className="font-mono">app:ref_cat_personnel_v1</span> — {refCatPersonnel.length} éléments
+                Clé <span className="font-mono">app:ref_cat_personnel_v1</span> — {categories.length} éléments actifs
             </div>
         </div>
     )

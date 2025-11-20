@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { SquarePen, Trash2 } from "lucide-react";
 import { useRefRegimes } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep } from '@/lib/utils/StringUtil'
-import {usePermissions} from '@/providers/AuthProvider';
+import {useAuth, usePermissions} from '@/providers/AuthProvider';
+import {applyCreateAudit, applyDeleteAudit, applyUpdateAudit, ensureAuditFields} from '@/lib/utils/audit';
 
 export default function RegimesPageClient() {
     const { refRegimes, setRefRegimes } = useRefRegimes()
@@ -22,9 +23,17 @@ export default function RegimesPageClient() {
     const [editing, setEditing] = useState(null)
     const [candidateDelete, setCandidateDelete] = useState(null)
     const {canCreate, canUpdate, canDelete} = usePermissions();
+    const {user} = useAuth();
     const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
+    useEffect(() => {
+        if (!mounted) return
+        const needsMigration = (refRegimes || []).some((r) => !r?.createdAt)
+        if (needsMigration) {
+            setRefRegimes((prev) => sanitizeList(prev || []))
+        }
+    }, [mounted, refRegimes, setRefRegimes])
 
     function uuid() {
         if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -33,12 +42,18 @@ export default function RegimesPageClient() {
     function showToast(type, msg) { setToast({ type, msg }); setTimeout(() => setToast(null), 2200) }
 
     function sanitizeList(arr) {
-        const list = (arr || []).map(raw => ({
+        const list = (arr || []).map(raw => ensureAuditFields({
             id: raw?.id || uuid(),
             code: String(raw?.code || '').trim(),
             libelle: String(raw?.libelle || '').trim(),
             ordre: Number.isFinite(Number(raw?.ordre)) ? Number(raw.ordre) : undefined,
-            is_enabled: typeof raw?.is_enabled === 'boolean' ? raw.is_enabled : true
+            is_enabled: typeof raw?.is_enabled === 'boolean' ? raw.is_enabled : true,
+            createdAt: raw?.createdAt,
+            createdBy: raw?.createdBy,
+            updatedAt: raw?.updatedAt,
+            updatedBy: raw?.updatedBy,
+            deletedAt: raw?.deletedAt ?? null,
+            deletedBy: raw?.deletedBy ?? null,
         }))
         const seen = new Set(), out = []
         for (const it of list) {
@@ -54,16 +69,19 @@ export default function RegimesPageClient() {
         out.sort((a, b) => (a.ordre ?? 1e9) - (b.ordre ?? 1e9) || a.code.localeCompare(b.code))
         return out.map((it, i) => ({ ...it, ordre: i + 1 }))
     }
-    function nextOrdre() { return (refRegimes?.length || 0) + 1 }
+    const regimesRaw = useMemo(() => sanitizeList(refRegimes || []), [refRegimes])
+    const regimes = useMemo(() => regimesRaw.filter((regime) => !regime.deletedAt), [regimesRaw])
+
+    const nextOrdre = () => (regimes.length || 0) + 1
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
-        let base = [...refRegimes].sort((a, b) =>
+        let base = [...regimes].sort((a, b) =>
             (sortAsc ? 1 : -1) * ((a.ordre || 0) - (b.ordre || 0) || a.code.localeCompare(b.code))
         )
         if (!q) return base
         return base.filter(x => x.code.toLowerCase().includes(q) || (x.libelle || '').toLowerCase().includes(q))
-    }, [refRegimes, query, sortAsc])
+    }, [regimes, query, sortAsc])
 
     const totalItems = filtered.length
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
@@ -103,7 +121,7 @@ export default function RegimesPageClient() {
         }
         const code = (editing.code || '').trim()
         if (!code) return showToast('error', 'Code requis')
-        const exists = refRegimes.find(x => x.code.toLowerCase() === code.toLowerCase() && x.id !== editing.id)
+        const exists = regimes.find(x => x.code.toLowerCase() === code.toLowerCase() && x.id !== editing.id)
         if (exists) return showToast('error', `Le code "${code}" existe déjà`)
 
         const libelle = (editing.libelle || '').trim()
@@ -111,12 +129,12 @@ export default function RegimesPageClient() {
         const ordre = Number.isFinite(Number(editing.ordre)) ? Number(editing.ordre) : nextOrdre()
 
         if (!editing.id) {
-            const created = { id: uuid(), code, libelle, ordre, is_enabled }
-            setRefRegimes(sanitizeList([...(refRegimes || []), created]))
+            const created = applyCreateAudit({ id: uuid(), code, libelle, ordre, is_enabled, deletedAt: null, deletedBy: null }, user)
+            setRefRegimes(sanitizeList([...(regimesRaw || []), created]))
             showToast('success', 'Régime créé')
         } else {
-            const next = (refRegimes || []).map(it => it.id === editing.id
-                ? { ...it, code, libelle, ordre, is_enabled }
+            const next = (regimesRaw || []).map(it => it.id === editing.id
+                ? applyUpdateAudit({ ...it, code, libelle, ordre, is_enabled }, user)
                 : it
             )
             setRefRegimes(sanitizeList(next))
@@ -137,7 +155,7 @@ export default function RegimesPageClient() {
             showToast('error', 'Suppression non autorisée pour votre rôle.')
             return
         }
-        const next = (refRegimes || []).filter(x => x.id !== candidateDelete.id)
+        const next = (regimesRaw || []).map((x) => x.id === candidateDelete.id ? applyDeleteAudit(x, user) : x)
         setRefRegimes(sanitizeList(next))
         showToast('success', 'Régime supprimé')
         deleteDialogRef.current?.close(); setCandidateDelete(null)
@@ -148,12 +166,17 @@ export default function RegimesPageClient() {
             showToast('error', 'Modification non autorisée pour votre rôle.')
             return
         }
-        const ids = [...refRegimes].sort((a, b) => a.ordre - b.ordre).map(x => x.id)
+        const ids = [...regimes].sort((a, b) => a.ordre - b.ordre).map(x => x.id)
         const i = ids.indexOf(item.id); const j = dir === 'up' ? i - 1 : i + 1
         if (i < 0 || j < 0 || j >= ids.length) return
-        const next = [...refRegimes]
-        const a = next.find(x => x.id === ids[i]); const b = next.find(x => x.id === ids[j])
-        const t = a.ordre; a.ordre = b.ordre; b.ordre = t
+        const a = regimesRaw.find(x => x.id === ids[i])
+        const b = regimesRaw.find(x => x.id === ids[j])
+        if (!a || !b) return
+        const next = (regimesRaw || []).map((entry) => {
+            if (entry.id === a.id) return applyUpdateAudit({ ...entry, ordre: b.ordre }, user)
+            if (entry.id === b.id) return applyUpdateAudit({ ...entry, ordre: a.ordre }, user)
+            return entry
+        })
         setRefRegimes(sanitizeList(next))
     }
     function toggleEnabled(item) {
@@ -161,12 +184,18 @@ export default function RegimesPageClient() {
             showToast('error', 'Modification non autorisée pour votre rôle.')
             return
         }
-        const next = (refRegimes || []).map(x => x.id === item.id ? { ...x, is_enabled: !x.is_enabled } : x)
-        setRefRegimes(next)
+        const next = (regimesRaw || []).map(x => x.id === item.id ? applyUpdateAudit({ ...x, is_enabled: !x.is_enabled }, user) : x)
+        setRefRegimes(sanitizeList(next))
     }
     function resetAll() {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         if (!confirm('Vider tous les régimes ?')) return
-        setRefRegimes([]); showToast('info', 'Liste vidée')
+        const next = (regimesRaw || []).map((regime) => regime.deletedAt ? regime : applyDeleteAudit(regime, user))
+        setRefRegimes(sanitizeList(next))
+        showToast('info', 'Liste vidée')
     }
 
     if (!mounted) {
@@ -355,7 +384,7 @@ export default function RegimesPageClient() {
             )}
 
             <div className="opacity-60 text-xs">
-                Clé <span className="font-mono">app:ref_regimes_v1</span> — {refRegimes.length} éléments
+                Clé <span className="font-mono">app:ref_regimes_v1</span> — {regimes.length} éléments actifs
             </div>
         </div>
     )

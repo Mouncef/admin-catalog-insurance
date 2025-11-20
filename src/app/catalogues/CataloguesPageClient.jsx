@@ -14,7 +14,8 @@ import {
 } from '@/providers/AppDataProvider'
 import { useMultiStorage } from '@/providers/MultiStorageProvider'
 import {Eye, Copy, SquarePen, Trash2, Columns3Cog} from "lucide-react"
-import {usePermissions} from '@/providers/AuthProvider';
+import {useAuth, usePermissions} from '@/providers/AuthProvider';
+import {applyCreateAudit, applyUpdateAudit, applyDeleteAudit, ensureAuditFields} from '@/lib/utils/audit';
 
 export default function CataloguesPageClient() {
     const LS_OFFRES = 'app:offres_v1'
@@ -38,6 +39,7 @@ export default function CataloguesPageClient() {
 
     const [mounted, setMounted] = useState(false)
     const {canCreate, canUpdate, canDelete} = usePermissions();
+    const {user} = useAuth();
     const [offerFilter, setOfferFilter] = useState('all')
     const [query, setQuery] = useState('')
     const [yearFilter, setYearFilter] = useState('all')
@@ -56,6 +58,13 @@ export default function CataloguesPageClient() {
     const [candidateDelete, setCandidateDelete] = useState(null)
 
     useEffect(() => { setMounted(true) }, [])
+    useEffect(() => {
+        if (!mounted) return
+        const needsMigration = (refCatalogues || []).some((c) => !c?.createdAt)
+        if (needsMigration) {
+            setRefCatalogues((prev) => sanitizeCatalogues(prev || []))
+        }
+    }, [mounted, refCatalogues, setRefCatalogues])
     const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     // ===== Utils =====
@@ -152,7 +161,7 @@ export default function CataloguesPageClient() {
             const cleanedCatIds = cleanCatalogueCatIds(raw.cat_personnel_ids)
             const catIds = cleanedCatIds.length > 0 ? cleanedCatIds : [...defaultCatalogueCatIds]
 
-            const item = {
+            const item = ensureAuditFields({
                 id: raw.id || uuid(),
                 offre_id: raw.offre_id,
                 risque,
@@ -164,7 +173,13 @@ export default function CataloguesPageClient() {
                 allow_multiple_niveaux: allowMulti,
                 default_niveau_set_id: defaultSetId,
                 cat_personnel_ids: catIds,
-            }
+                createdAt: raw.createdAt,
+                createdBy: raw.createdBy,
+                updatedAt: raw.updatedAt,
+                updatedBy: raw.updatedBy,
+                deletedAt: raw.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? null,
+            })
             if (!item.offre_id || !offerMap.has(item.offre_id)) continue
             if (!item.risque || !item.version) continue
             const k = `${item.offre_id}::${item.risque.toLowerCase()}::${item.annee ?? ''}::${item.version.toLowerCase()}`
@@ -174,26 +189,32 @@ export default function CataloguesPageClient() {
     }
 
     // ===== Derived data for filters =====
+    const cataloguesRaw = useMemo(
+        () => sanitizeCatalogues(refCatalogues || []),
+        [refCatalogues, defaultCatalogueCatIds, catPersonnelIdSet, catPersonnelOrderIndex, offerMap]
+    )
+    const catalogues = useMemo(() => cataloguesRaw.filter((c) => !c.deletedAt), [cataloguesRaw])
+
     const yearsAvailable = useMemo(() => {
         const set = new Set()
-        for (const c of refCatalogues) if (Number.isFinite(Number(c.annee))) set.add(Number(c.annee))
+        for (const c of catalogues) if (Number.isFinite(Number(c.annee))) set.add(Number(c.annee))
         return Array.from(set).sort((a, b) => b - a)
-    }, [refCatalogues])
+    }, [catalogues])
 
     const statusesAvailable = useMemo(() => {
         const set = new Set()
-        for (const c of refCatalogues) {
+        for (const c of catalogues) {
             const s = String(c.status || '').trim()
             if (s) set.add(s)
         }
         const arr = Array.from(set)
         return arr.length ? arr : ['draft', 'active', 'archived']
-    }, [refCatalogues])
+    }, [catalogues])
 
     // ===== Sélecteur principal =====
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
-        let base = refCatalogues
+        let base = catalogues
             .filter((c) => offerFilter === 'all' ? true : c.offre_id === offerFilter)
             .filter((c) => yearFilter === 'all' ? true : String(c.annee || '') === String(yearFilter))
             .filter((c) => statusFilter === 'all' ? true : String(c.status || '').toLowerCase() === String(statusFilter).toLowerCase())
@@ -221,7 +242,7 @@ export default function CataloguesPageClient() {
         })
 
         return base
-    }, [refCatalogues, offerFilter, yearFilter, statusFilter, onlyActive, query, sortNewestFirst, offerMap])
+    }, [catalogues, offerFilter, yearFilter, statusFilter, onlyActive, query, sortNewestFirst, offerMap])
 
     // ======= Pagination dérivées =======
     const totalItems = filtered.length
@@ -479,7 +500,7 @@ export default function CataloguesPageClient() {
         if (enabledCatPersonnel.length > 0 && selectedCatIds.length === 0) return showToast('error', 'Sélectionnez au moins une catégorie de collège')
 
         // Unicité
-        const duplicate = refCatalogues.find((c) =>
+        const duplicate = catalogues.find((c) =>
             c.offre_id === offre_id &&
             String(c.risque).toLowerCase() === risque.toLowerCase() &&
             String(c.version).toLowerCase() === version.toLowerCase() &&
@@ -490,7 +511,7 @@ export default function CataloguesPageClient() {
 
         if (!editing.id) {
             const newId = uuid()
-            const created = {
+            const created = applyCreateAudit({
                 id: newId,
                 offre_id,
                 risque,
@@ -500,8 +521,10 @@ export default function CataloguesPageClient() {
                 valid_from,
                 valid_to,
                 cat_personnel_ids: selectedCatIds,
-            }
-            const next = sanitizeCatalogues([...refCatalogues, created])
+                deletedAt: null,
+                deletedBy: null,
+            }, user)
+            const next = sanitizeCatalogues([...cataloguesRaw, created])
             setRefCatalogues(next)
 
             // duplication profonde si demandé
@@ -509,9 +532,9 @@ export default function CataloguesPageClient() {
 
             showToast('success', 'Catalogue créé')
         } else {
-            const nextArr = refCatalogues.map((c) => (c.id === editing.id ? {
+            const nextArr = cataloguesRaw.map((c) => (c.id === editing.id ? applyUpdateAudit({
                 ...c, offre_id, risque, annee, version, status, valid_from, valid_to, cat_personnel_ids: selectedCatIds
-            } : c))
+            }, user) : c))
             const next = sanitizeCatalogues(nextArr)
             setRefCatalogues(next)
             showToast('success', 'Catalogue mis à jour')
@@ -540,7 +563,10 @@ export default function CataloguesPageClient() {
         deleteCatalogueData(candidateDelete.id)
 
         // supprimer l’entrée catalogue
-        setRefCatalogues(refCatalogues.filter((c) => c.id !== candidateDelete.id))
+        const next = sanitizeCatalogues(
+            cataloguesRaw.map((c) => (c.id === candidateDelete.id ? applyDeleteAudit(c, user) : c))
+        )
+        setRefCatalogues(next)
         showToast('success', 'Catalogue et données associées supprimés')
         deleteDialogRef.current?.close()
         setCandidateDelete(null)
@@ -949,7 +975,7 @@ export default function CataloguesPageClient() {
 
             {/* Footer helper */}
             <div className="opacity-60 text-xs">
-                <span className="font-mono">localStorage</span> clés: <span className="font-mono">{LS_OFFRES}</span> (offres), <span className="font-mono">{LS_CATALOGUES}</span> (catalogues) — {refCatalogues.length} catalogues
+                <span className="font-mono">localStorage</span> clés: <span className="font-mono">{LS_OFFRES}</span> (offres), <span className="font-mono">{LS_CATALOGUES}</span> (catalogues) — {catalogues.length} catalogues actifs
             </div>
         </div>
     )

@@ -5,7 +5,8 @@ import { useRefModules, useRefCategories, useRefActs } from '@/providers/AppData
 import { sanitizeUpperKeep, normalizeRisk } from '@/lib/utils/StringUtil'
 import { SquarePen, Trash2, Info } from "lucide-react";
 import { buildVirtualCategory, makeUngroupedCategoryId, isUngroupedCategoryId } from '@/lib/utils/categoryUtils'
-import {usePermissions} from '@/providers/AuthProvider';
+import {useAuth, usePermissions} from '@/providers/AuthProvider';
+import {applyCreateAudit, applyUpdateAudit, applyDeleteAudit, ensureAuditFields} from '@/lib/utils/audit';
 
 /**
  * Page Next.js (JSX) — Référentiel des ACTES
@@ -51,9 +52,17 @@ export default function GarantiesPageClient() {
     const [editing, setEditing] = useState(null) // acte en édition
     const [candidateDelete, setCandidateDelete] = useState(null)
     const {canCreate, canUpdate, canDelete} = usePermissions();
+    const {user} = useAuth();
     const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
+    useEffect(() => {
+        if (!mounted) return;
+        const needsMigration = (refActs || []).some((act) => !act?.createdAt);
+        if (needsMigration) {
+            setRefActs(sanitizeActs(refActs || []));
+        }
+    }, [mounted, refActs, setRefActs, moduleMap, categoryMap])
 
     useEffect(() => {
         if (riskFilter === 'all') return
@@ -127,7 +136,7 @@ export default function GarantiesPageClient() {
             const resolvedCategory = categoryMap.get(resolvedCategoryId) || buildVirtualCategory(module)
             const risque = normalizeRisk(raw.risque ?? resolvedCategory?.risque ?? module?.risque)
             const allowSurco = risque === 'prevoyance' ? false : (typeof raw.allow_surco === 'boolean' ? raw.allow_surco : true)
-            const item = {
+            const item = ensureAuditFields({
                 id: raw.id || uuid(),
                 ref_module_id: moduleId,
                 ref_categorie_id: resolvedCategoryId,
@@ -137,7 +146,13 @@ export default function GarantiesPageClient() {
                 allow_surco: allowSurco,
                 ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : undefined,
                 risque,
-            }
+                createdAt: raw.createdAt,
+                createdBy: raw.createdBy,
+                updatedAt: raw.updatedAt,
+                updatedBy: raw.updatedBy,
+                deletedAt: raw.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? null,
+            })
             if (!byCat.has(item.ref_categorie_id)) byCat.set(item.ref_categorie_id, [])
             byCat.get(item.ref_categorie_id).push(item)
         }
@@ -167,7 +182,7 @@ export default function GarantiesPageClient() {
 
     function nextOrdreForCategory(catId) {
         if (!catId) return 1
-        const count = refActs.filter((a) => a.ref_categorie_id === catId).length
+        const count = actsRaw.filter((a) => a.ref_categorie_id === catId && !a.deletedAt).length
         return count + 1
     }
 
@@ -188,10 +203,13 @@ export default function GarantiesPageClient() {
         else if (categoryFilter !== 'all' && cats.every(c => c.id !== categoryFilter)) setCategoryFilter('all')
     }, [moduleFilter, categoriesByModule, categoryFilter, riskFilter, categoryMap, moduleMap])
 
+    const actsRaw = useMemo(() => sanitizeActs(refActs || []), [refActs, moduleMap, categoryMap])
+    const acts = useMemo(() => actsRaw.filter((a) => !a.deletedAt), [actsRaw])
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
 
-        let base = refActs
+        let base = acts
             .filter((a) => {
                 const cat = categoryMap.get(a.ref_categorie_id || '')
                 const moduleId = a.ref_module_id || cat?.ref_module_id
@@ -307,7 +325,7 @@ export default function GarantiesPageClient() {
         if (!code) return showToast('error', 'Le code est requis')
         if (code.length > 80) return showToast('error', 'Code ≤ 80 caractères')
 
-        const existsSameCode = refActs.find((a) =>
+        const existsSameCode = acts.some((a) =>
             a.ref_categorie_id === ref_categorie_id && a.code.toLowerCase() === code.toLowerCase() && a.id !== editing.id
         )
         if (existsSameCode) return showToast('error', `Le code "${code}" existe déjà dans cette catégorie`)
@@ -319,13 +337,25 @@ export default function GarantiesPageClient() {
         const ordre = Number.isFinite(Number(editing.ordre)) ? Number(editing.ordre) : nextOrdreForCategory(ref_categorie_id)
 
         if (!editing.id) {
-            const created = { id: uuid(), ref_module_id: moduleId, ref_categorie_id, code, libelle, libelle_long, allow_surco, ordre, risque }
-            const next = sanitizeActs([...refActs, created])
+            const created = applyCreateAudit({
+                id: uuid(),
+                ref_module_id: moduleId,
+                ref_categorie_id,
+                code,
+                libelle,
+                libelle_long,
+                allow_surco,
+                ordre,
+                risque,
+                deletedAt: null,
+                deletedBy: null,
+            }, user)
+            const next = sanitizeActs([...actsRaw, created])
             setRefActs(next)
             showToast('success', 'Acte créé')
         } else {
-            const nextArr = refActs.map((a) =>
-                a.id === editing.id ? { ...a, ref_module_id: moduleId, ref_categorie_id, code, libelle, libelle_long, allow_surco, ordre, risque } : a
+            const nextArr = actsRaw.map((a) =>
+                a.id === editing.id ? applyUpdateAudit({ ...a, ref_module_id: moduleId, ref_categorie_id, code, libelle, libelle_long, allow_surco, ordre, risque }, user) : a
             )
             const next = sanitizeActs(nextArr)
             setRefActs(next)
@@ -351,8 +381,10 @@ export default function GarantiesPageClient() {
             showToast('error', 'Suppression non autorisée pour votre rôle.')
             return
         }
-        const next = sanitizeActs(refActs.filter((a) => a.id !== candidateDelete.id))
-        setRefActs(next)
+        const nextRaw = (actsRaw || []).map((a) =>
+            a.id === candidateDelete.id ? applyDeleteAudit(a, user) : a
+        )
+        setRefActs(sanitizeActs(nextRaw))
         showToast('success', 'Acte supprimé')
         deleteDialogRef.current?.close()
         setCandidateDelete(null)
@@ -379,15 +411,16 @@ export default function GarantiesPageClient() {
 
         const idA = ids[idx]
         const idB = ids[targetIdx]
-        const next = [...refActs]
-        const a = next.find((x) => x.id === idA)
-        const b = next.find((x) => x.id === idB)
+        const a = actsRaw.find((x) => x.id === idA)
+        const b = actsRaw.find((x) => x.id === idB)
         if (!a || !b) return
         if (a.ref_categorie_id !== b.ref_categorie_id) return
 
-        const tmp = a.ordre
-        a.ordre = b.ordre
-        b.ordre = tmp
+        const next = (actsRaw || []).map((entry) => {
+            if (entry.id === a.id) return applyUpdateAudit({ ...entry, ordre: b.ordre }, user)
+            if (entry.id === b.id) return applyUpdateAudit({ ...entry, ordre: a.ordre }, user)
+            return entry
+        })
         setRefActs(sanitizeActs(next))
     }
 
@@ -439,8 +472,8 @@ export default function GarantiesPageClient() {
     function mergeKeepingUniquePerCategory(existing, incoming) {
         // key = catId::codeLower
         const keyOf = (a) => `${a.ref_categorie_id || ''}::${String(a.code || '').trim().toLowerCase()}`
-        const map = new Map(existing.map((a) => [keyOf(a), a]))
-        for (const raw of incoming) {
+        const map = new Map((existing || []).map((a) => [keyOf(a), ensureAuditFields(a)]))
+        for (const raw of incoming || []) {
             if (!raw) continue
             const item = {
                 id: raw.id || uuid(),
@@ -451,9 +484,27 @@ export default function GarantiesPageClient() {
                 libelle_long: String(raw.libelle_long || '').trim(), // NEW
                 allow_surco: typeof raw.allow_surco === 'boolean' ? raw.allow_surco : true,
                 ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : undefined,
+                risque: normalizeRisk(raw.risque),
+                createdAt: raw.createdAt,
+                createdBy: raw.createdBy,
+                updatedAt: raw.updatedAt,
+                updatedBy: raw.updatedBy,
+                deletedAt: raw.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? null,
             }
             if (!item.ref_categorie_id || !categoryMap.has(item.ref_categorie_id) || !item.code) continue
-            map.set(keyOf(item), { ...map.get(keyOf(item)), ...item })
+            const prev = map.get(keyOf(item))
+            const merged = ensureAuditFields({
+                ...prev,
+                ...item,
+                createdAt: item.createdAt || prev?.createdAt,
+                createdBy: item.createdBy || prev?.createdBy,
+                updatedAt: item.updatedAt || prev?.updatedAt,
+                updatedBy: item.updatedBy || prev?.updatedBy,
+                deletedAt: item.deletedAt ?? prev?.deletedAt ?? null,
+                deletedBy: item.deletedBy ?? prev?.deletedBy ?? null,
+            })
+            map.set(keyOf(item), merged)
         }
         return Array.from(map.values())
     }
@@ -464,7 +515,8 @@ export default function GarantiesPageClient() {
             return
         }
         if (!confirm('Supprimer tous les actes stockés ?')) return
-        setRefActs([])
+        const next = (actsRaw || []).map((act) => act.deletedAt ? act : applyDeleteAudit(act, user))
+        setRefActs(sanitizeActs(next))
         showToast('info', 'Liste vidée')
     }
 

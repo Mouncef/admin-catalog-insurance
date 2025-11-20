@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRefOffers } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep } from '@/lib/utils/StringUtil'
 import { SquarePen, Trash2 } from "lucide-react";
-import {usePermissions} from '@/providers/AuthProvider';
+import {useAuth, usePermissions} from '@/providers/AuthProvider';
+import {applyCreateAudit, applyUpdateAudit, applyDeleteAudit, ensureAuditFields} from '@/lib/utils/audit';
 
 /**
  * Page Next.js (JSX) — Administration des OFFRES
@@ -34,9 +35,17 @@ export default function OffresPageClient() {
     const [editing, setEditing] = useState(null) // offre en édition
     const [candidateDelete, setCandidateDelete] = useState(null)
     const {canCreate, canUpdate, canDelete} = usePermissions();
+    const {user} = useAuth();
     const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
+    useEffect(() => {
+        if (!mounted) return
+        const needsMigration = (refOffers || []).some((offre) => !offre?.createdAt)
+        if (needsMigration) {
+            setRefOffers((prev) => sanitizeOffers(prev || []))
+        }
+    }, [mounted, refOffers, setRefOffers])
 
     // ===== Utils =====
     function uuid() {
@@ -49,15 +58,35 @@ export default function OffresPageClient() {
         setTimeout(() => setToast(null), 2500)
     }
 
+    function sanitizeOffers(arr) {
+        return (arr || [])
+            .filter(Boolean)
+            .map((offre) => ensureAuditFields({
+                id: offre.id || uuid(),
+                code: String(offre.code || '').trim(),
+                libelle: String(offre.libelle || '').trim(),
+                createdAt: offre.createdAt,
+                createdBy: offre.createdBy,
+                updatedAt: offre.updatedAt,
+                updatedBy: offre.updatedBy,
+                deletedAt: offre.deletedAt ?? null,
+                deletedBy: offre.deletedBy ?? null,
+            }))
+            .filter((offre) => !!offre.code)
+    }
+
+    const offersRaw = useMemo(() => sanitizeOffers(refOffers || []), [refOffers])
+    const offers = useMemo(() => offersRaw.filter((offre) => !offre.deletedAt), [offersRaw])
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
-        let base = [...refOffers]
+        let base = [...offers]
         base.sort((a, b) =>
             (sortAsc ? 1 : -1) * (a.code.localeCompare(b.code) || (a.libelle || '').localeCompare(b.libelle || ''))
         )
         if (!q) return base
         return base.filter((o) => o.code.toLowerCase().includes(q) || (o.libelle || '').toLowerCase().includes(q))
-    }, [refOffers, query, sortAsc])
+    }, [offers, query, sortAsc])
 
     // ======= Pagination dérivées =======
     const totalItems = filtered.length
@@ -107,19 +136,19 @@ export default function OffresPageClient() {
         if (!code) return showToast('error', 'Le code est requis')
         if (code.length > 40) return showToast('error', 'Code ≤ 40 caractères')
 
-        const existsSameCode = refOffers.find((o) => o.code.toLowerCase() === code.toLowerCase() && o.id !== editing.id)
+        const existsSameCode = offers.find((o) => o.code.toLowerCase() === code.toLowerCase() && o.id !== editing.id)
         if (existsSameCode) return showToast('error', `Le code "${code}" existe déjà`)
 
         const libelle = (editing.libelle || '').trim()
 
         if (!editing.id) {
-            const created = { id: uuid(), code, libelle }
-            setRefOffers([...refOffers, created])
+            const created = applyCreateAudit({ id: uuid(), code, libelle, deletedAt: null, deletedBy: null }, user)
+            setRefOffers(sanitizeOffers([...offersRaw, created]))
             // setPage(1) // (optionnel) revenir à la page 1 après création
             showToast('success', 'Offre créée')
         } else {
-            const nextArr = refOffers.map((o) => (o.id === editing.id ? { ...o, code, libelle } : o))
-            setRefOffers(nextArr)
+            const nextArr = offersRaw.map((o) => (o.id === editing.id ? applyUpdateAudit({ ...o, code, libelle }, user) : o))
+            setRefOffers(sanitizeOffers(nextArr))
             showToast('success', 'Offre mise à jour')
         }
 
@@ -142,7 +171,8 @@ export default function OffresPageClient() {
             showToast('error', 'Suppression non autorisée pour votre rôle.')
             return
         }
-        setRefOffers(refOffers.filter((o) => o.id !== candidateDelete.id))
+        const nextArr = offersRaw.map((o) => o.id === candidateDelete.id ? applyDeleteAudit(o, user) : o)
+        setRefOffers(sanitizeOffers(nextArr))
         showToast('success', 'Offre supprimée')
         deleteDialogRef.current?.close()
         setCandidateDelete(null)
@@ -341,7 +371,7 @@ export default function OffresPageClient() {
 
             {/* Footer helper */}
             <div className="opacity-60 text-xs">
-                <span className="font-mono">localStorage</span> clé: <span className="font-mono">{LS_OFFRES}</span> (offres) — {refOffers.length} offres
+                <span className="font-mono">localStorage</span> clé: <span className="font-mono">{LS_OFFRES}</span> (offres) — {offers.length} offres
             </div>
         </div>
     )

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRefModules, useRefCategories } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep, normalizeRisk } from "@/lib/utils/StringUtil"
 import { SquarePen, Trash2 } from "lucide-react"
-import {usePermissions} from '@/providers/AuthProvider';
+import {useAuth, usePermissions} from '@/providers/AuthProvider';
+import {applyCreateAudit, applyDeleteAudit, applyUpdateAudit, ensureAuditFields} from '@/lib/utils/audit';
 
 export default function GroupesGarantiesPageClient() {
     const RISK_OPTIONS = [
@@ -36,6 +37,7 @@ export default function GroupesGarantiesPageClient() {
     const [editing, setEditing] = useState(null)
     const [candidateDelete, setCandidateDelete] = useState(null)
     const {canCreate, canUpdate, canDelete} = usePermissions();
+    const {user} = useAuth();
     const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
@@ -71,14 +73,20 @@ export default function GroupesGarantiesPageClient() {
         const byMod = new Map()
         for (const raw of arr || []) {
             if (!raw) continue
-            const item = {
+            const item = ensureAuditFields({
                 id: raw.id || uuid(),
                 ref_module_id: raw.ref_module_id,
                 code: String(raw.code || '').trim(),
                 libelle: String(raw.libelle || '').trim(),
                 ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : undefined,
                 risque: normalizeRisk(raw.risque ?? moduleRiskMap.get(raw.ref_module_id)),
-            }
+                createdAt: raw.createdAt,
+                createdBy: raw.createdBy,
+                updatedAt: raw.updatedAt,
+                updatedBy: raw.updatedBy,
+                deletedAt: raw.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? null,
+            })
             if (!item.ref_module_id || !modSet.has(item.ref_module_id)) continue // ignorer catégories orphelines
             if (!byMod.has(item.ref_module_id)) byMod.set(item.ref_module_id, [])
             byMod.get(item.ref_module_id).push(item)
@@ -116,6 +124,17 @@ export default function GroupesGarantiesPageClient() {
         return modulesNormalized.filter((m) => normalizeRisk(m.risque) === riskFilter)
     }, [modulesNormalized, riskFilter])
 
+    const categoriesRaw = useMemo(() => sanitizeCategories(refCategories || [], modulesNormalized), [refCategories, modulesNormalized])
+    const categories = useMemo(() => categoriesRaw.filter((cat) => !cat.deletedAt), [categoriesRaw])
+
+    useEffect(() => {
+        if (!mounted) return
+        const needsMigration = (refCategories || []).some((cat) => !cat?.createdAt)
+        if (needsMigration) {
+            setRefCategories((prev) => sanitizeCategories(prev || [], modulesNormalized))
+        }
+    }, [mounted, refCategories, setRefCategories, modulesNormalized])
+
     useEffect(() => {
         if (riskFilter === 'all') return
         if (moduleFilter === 'all') return
@@ -130,7 +149,7 @@ export default function GroupesGarantiesPageClient() {
     // ======= Sélecteurs =======
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
-        let base = refCategories.filter((c) => moduleFilter === 'all' ? true : c.ref_module_id === moduleFilter)
+        let base = categories.filter((c) => moduleFilter === 'all' ? true : c.ref_module_id === moduleFilter)
         if (riskFilter !== 'all') {
             base = base.filter((c) => normalizeRisk(c.risque ?? moduleMap.get(c.ref_module_id)?.risque) === riskFilter)
         }
@@ -148,7 +167,7 @@ export default function GroupesGarantiesPageClient() {
         return base.filter(
             (c) => c.code.toLowerCase().includes(q) || (c.libelle || '').toLowerCase().includes(q)
         )
-    }, [refCategories, moduleFilter, query, sortAsc, moduleMap, riskFilter])
+    }, [categories, moduleFilter, query, sortAsc, moduleMap, riskFilter])
 
     // ======= Pagination dérivées =======
     const totalItems = filtered.length
@@ -185,7 +204,7 @@ export default function GroupesGarantiesPageClient() {
 
     function nextOrdreForModule(modId) {
         if (!modId) return 1
-        const count = refCategories.filter((c) => c.ref_module_id === modId).length
+        const count = categories.filter((c) => c.ref_module_id === modId).length
         return count + 1
     }
 
@@ -219,7 +238,7 @@ export default function GroupesGarantiesPageClient() {
         if (!code) return showToast('error', 'Le code est requis')
         if (code.length > 60) return showToast('error', 'Code ≤ 60 caractères')
 
-        const existsSameCode = refCategories.find((c) =>
+        const existsSameCode = categories.find((c) =>
             c.ref_module_id === ref_module_id && c.code.toLowerCase() === code.toLowerCase() && c.id !== editing.id
         )
         if (existsSameCode) return showToast('error', `Le code "${code}" existe déjà dans ce module`)
@@ -230,12 +249,12 @@ export default function GroupesGarantiesPageClient() {
         const risque = normalizeRisk(editing.risque ?? moduleRow?.risque)
 
         if (!editing.id) {
-            const created = { id: uuid(), ref_module_id, code, libelle, ordre, risque }
-            const next = sanitizeCategories([...refCategories, created], modulesNormalized)
+            const created = applyCreateAudit({ id: uuid(), ref_module_id, code, libelle, ordre, risque, deletedAt: null, deletedBy: null }, user)
+            const next = sanitizeCategories([...categoriesRaw, created], modulesNormalized)
             setRefCategories(next)
             showToast('success', 'Catégorie créée')
         } else {
-            const nextArr = refCategories.map((c) => (c.id === editing.id ? { ...c, ref_module_id, code, libelle, ordre, risque } : c))
+            const nextArr = categoriesRaw.map((c) => (c.id === editing.id ? applyUpdateAudit({ ...c, ref_module_id, code, libelle, ordre, risque }, user) : c))
             const next = sanitizeCategories(nextArr, modulesNormalized)
             setRefCategories(next)
             showToast('success', 'Catégorie mise à jour')
@@ -259,7 +278,8 @@ export default function GroupesGarantiesPageClient() {
             showToast('error', 'Suppression non autorisée pour votre rôle.')
             return
         }
-        const next = sanitizeCategories(refCategories.filter((c) => c.id !== candidateDelete.id), modulesNormalized)
+        const nextRaw = categoriesRaw.map((c) => c.id === candidateDelete.id ? applyDeleteAudit(c, user) : c)
+        const next = sanitizeCategories(nextRaw, modulesNormalized)
         setRefCategories(next)
         showToast('success', 'Catégorie supprimée')
         deleteDialogRef.current?.close()
@@ -274,7 +294,7 @@ export default function GroupesGarantiesPageClient() {
     // Réordonne **dans le module**, pas limité à la page courante
     function move(cat, dir) {
         const currentMod = cat.ref_module_id
-        const siblings = refCategories
+        const siblings = categories
             .filter((c) => c.ref_module_id === currentMod)
             .sort((a, b) => a.ordre - b.ordre || a.code.localeCompare(b.code))
         const ids = siblings.map((c) => c.id)
@@ -285,20 +305,21 @@ export default function GroupesGarantiesPageClient() {
 
         const idA = ids[idx]
         const idB = ids[targetIdx]
-        const next = [...refCategories]
-        const a = next.find((c) => c.id === idA)
-        const b = next.find((c) => c.id === idB)
+        const a = categoriesRaw.find((c) => c.id === idA)
+        const b = categoriesRaw.find((c) => c.id === idB)
         if (!a || !b) return
 
-        const tmp = a.ordre
-        a.ordre = b.ordre
-        b.ordre = tmp
+        const next = categoriesRaw.map((entry) => {
+            if (entry.id === a.id) return applyUpdateAudit({ ...entry, ordre: b.ordre }, user)
+            if (entry.id === b.id) return applyUpdateAudit({ ...entry, ordre: a.ordre }, user)
+            return entry
+        })
         setRefCategories(sanitizeCategories(next, modulesNormalized))
     }
 
     // ======= Import/Export (optionnels) =======
     function exportJSON() {
-        const data = JSON.stringify(refCategories, null, 2)
+        const data = JSON.stringify(categoriesRaw, null, 2)
         const blob = new Blob([data], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -318,7 +339,7 @@ export default function GroupesGarantiesPageClient() {
             try {
                 const incoming = JSON.parse(String(reader.result))
                 if (!Array.isArray(incoming)) throw new Error('JSON attendu: tableau de catégories')
-                const merged = mergeKeepingUniquePerModule(refCategories, incoming)
+                const merged = mergeKeepingUniquePerModule(categoriesRaw, incoming)
                 setRefCategories(sanitizeCategories(merged, modulesNormalized))
                 showToast('success', 'Import réussi')
             } catch (err) {
@@ -334,18 +355,29 @@ export default function GroupesGarantiesPageClient() {
     function mergeKeepingUniquePerModule(existing, incoming) {
         // clé = moduleId::codeLower
         const keyOf = (c) => `${c.ref_module_id || ''}::${String(c.code || '').trim().toLowerCase()}`
-        const map = new Map(existing.map((c) => [keyOf(c), c]))
-        for (const raw of incoming) {
+        const map = new Map((existing || []).map((c) => [keyOf(c), ensureAuditFields(c)]))
+        for (const raw of incoming || []) {
             if (!raw) continue
-            const item = {
-                id: raw.id || uuid(),
-                ref_module_id: raw.ref_module_id,
-                code: String(raw.code || '').trim(),
+            const ref_module_id = raw.ref_module_id
+            const code = String(raw.code || '').trim()
+            if (!ref_module_id || !moduleMap.has(ref_module_id) || !code) continue
+            const key = `${ref_module_id}::${code.toLowerCase()}`
+            const prev = map.get(key)
+            const merged = ensureAuditFields({
+                ...(prev || { id: raw.id || uuid(), ref_module_id, code }),
+                ref_module_id,
+                code,
                 libelle: String(raw.libelle || '').trim(),
                 ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : undefined,
-            }
-            if (!item.ref_module_id || !moduleMap.has(item.ref_module_id) || !item.code) continue
-            map.set(keyOf(item), { ...map.get(keyOf(item)), ...item })
+                risque: normalizeRisk(raw.risque ?? prev?.risque ?? moduleMap.get(ref_module_id)?.risque),
+                createdAt: raw.createdAt || prev?.createdAt,
+                createdBy: raw.createdBy || prev?.createdBy,
+                updatedAt: raw.updatedAt || prev?.updatedAt,
+                updatedBy: raw.updatedBy || prev?.updatedBy,
+                deletedAt: raw.deletedAt ?? prev?.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? prev?.deletedBy ?? null,
+            })
+            map.set(key, merged)
         }
         return Array.from(map.values())
     }
@@ -356,7 +388,8 @@ export default function GroupesGarantiesPageClient() {
             return
         }
         if (!confirm('Supprimer tous les groupes de garanties ?')) return
-        setRefCategories([])
+        const next = categoriesRaw.map((cat) => cat.deletedAt ? cat : applyDeleteAudit(cat, user))
+        setRefCategories(sanitizeCategories(next, modulesNormalized))
         showToast('info', 'Référentiel vidé')
     }
 
@@ -662,7 +695,7 @@ export default function GroupesGarantiesPageClient() {
 
             {/* Footer helper */}
             <div className="opacity-60 text-xs">
-                <span className="font-mono">localStorage</span> clés: <span className="font-mono">{LS_MODS}</span> (modules), <span className="font-mono">{LS_CATS}</span> (catégories) — {refCategories.length} catégories
+                <span className="font-mono">localStorage</span> clés: <span className="font-mono">{LS_MODS}</span> (modules), <span className="font-mono">{LS_CATS}</span> (catégories) — {categories.length} catégories actives
             </div>
         </div>
     )

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRefNiveau, useRefNiveauSets } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep, normalizeRisk } from '@/lib/utils/StringUtil'
 import { SquarePen, Trash2 } from "lucide-react";
-import {usePermissions} from '@/providers/AuthProvider';
+import {useAuth, usePermissions} from '@/providers/AuthProvider';
+import {applyCreateAudit, applyDeleteAudit, applyUpdateAudit, ensureAuditFields} from '@/lib/utils/audit';
 
 const RISK_OPTIONS = [
     { value: 'sante', label: 'Santé' },
@@ -45,9 +46,17 @@ export default function NiveauxPageClient() {
     const [editing, setEditing] = useState(null)
     const [candidateDelete, setCandidateDelete] = useState(null)
     const {canCreate, canUpdate, canDelete} = usePermissions();
+    const {user} = useAuth();
     const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
+    useEffect(() => {
+        if (!mounted) return
+        const needsMigration = (refNiveau || []).some((niv) => !niv?.createdAt)
+        if (needsMigration) {
+            setRefNiveau((prev) => sanitizeLevels(prev || []))
+        }
+    }, [mounted, refNiveau, setRefNiveau])
 
     // ===== Utils =====
     function uuid() {
@@ -80,7 +89,7 @@ export default function NiveauxPageClient() {
             seen.add(key)
             const refSetId = raw.ref_set_id ? String(raw.ref_set_id) : undefined
             const riskFromSet = refSetId ? setMap.get(refSetId)?.risque : undefined
-            list.push({
+            list.push(ensureAuditFields({
                 id: raw.id || uuid(),
                 code,
                 libelle: String(raw.libelle || '').trim(),
@@ -88,7 +97,13 @@ export default function NiveauxPageClient() {
                 is_enabled: typeof raw.is_enabled === 'boolean' ? raw.is_enabled : true,
                 ref_set_id: refSetId,
                 risque: normalizeRisk(raw.risque ?? riskFromSet),
-            })
+                createdAt: raw.createdAt,
+                createdBy: raw.createdBy,
+                updatedAt: raw.updatedAt,
+                updatedBy: raw.updatedBy,
+                deletedAt: raw.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? null,
+            }))
         }
 
         // ⬇️ groupage par set ('' = sans set)
@@ -111,9 +126,12 @@ export default function NiveauxPageClient() {
         return out
     }
 
+    const niveauxRaw = useMemo(() => sanitizeLevels(refNiveau || []), [refNiveau, setMap])
+    const niveaux = useMemo(() => niveauxRaw.filter((niv) => !niv.deletedAt), [niveauxRaw])
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
-        let base = [...refNiveau]
+        let base = [...niveaux]
 
         // Tri: d’abord par set, puis ordre, puis code
         base.sort((a, b) => {
@@ -145,7 +163,7 @@ export default function NiveauxPageClient() {
             (n.libelle || '').toLowerCase().includes(q) ||
             (n.ref_set_id && String(n.ref_set_id).toLowerCase().includes(q))
         )
-    }, [refNiveau, query, sortAsc, selectedSetId, riskFilter])
+    }, [niveaux, query, sortAsc, selectedSetId, riskFilter])
 
     // ======= Pagination dérivées =======
     const totalItems = filtered.length
@@ -177,7 +195,7 @@ export default function NiveauxPageClient() {
     }
 
     function nextOrdre() {
-        return (refNiveau.length || 0) + 1
+        return (niveaux.length || 0) + 1
     }
 
     function openEdit(row) {
@@ -193,7 +211,7 @@ export default function NiveauxPageClient() {
         if (!code) return showToast('error', 'Le code est requis')
         if (code.length > 20) return showToast('error', 'Code ≤ 20 caractères')
 
-        const exists = refNiveau.find((n) => n.code.toLowerCase() === code.toLowerCase() && n.id !== editing.id)
+        const exists = niveaux.find((n) => n.code.toLowerCase() === code.toLowerCase() && n.id !== editing.id)
         if (exists) return showToast('error', `Le code "${code}" existe déjà`)
 
         const libelle = (editing.libelle || '').trim()
@@ -204,11 +222,11 @@ export default function NiveauxPageClient() {
         const risque = normalizeRisk(editing.risque ?? riskFromSet)
 
         if (!editing.id) {
-            const created = { id: uuid(), code, libelle, ordre, is_enabled, ref_set_id, risque }
-            setRefNiveau(sanitizeLevels([...refNiveau, created]))
+            const created = applyCreateAudit({ id: uuid(), code, libelle, ordre, is_enabled, ref_set_id, risque, deletedAt: null, deletedBy: null }, user)
+            setRefNiveau(sanitizeLevels([...(niveauxRaw || []), created]))
             showToast('success', 'Niveau créé')
         } else {
-            const nextArr = refNiveau.map((n) => (n.id === editing.id ? { ...n, code, libelle, ordre, is_enabled, ref_set_id, risque } : n))
+            const nextArr = niveauxRaw.map((n) => (n.id === editing.id ? applyUpdateAudit({ ...n, code, libelle, ordre, is_enabled, ref_set_id, risque }, user) : n))
             setRefNiveau(sanitizeLevels(nextArr))
             showToast('success', 'Niveau mis à jour')
         }
@@ -232,7 +250,8 @@ export default function NiveauxPageClient() {
             showToast('error', 'Suppression non autorisée pour votre rôle.')
             return
         }
-        setRefNiveau(sanitizeLevels(refNiveau.filter((n) => n.id !== candidateDelete.id)))
+        const next = niveauxRaw.map((n) => n.id === candidateDelete.id ? applyDeleteAudit(n, user) : n)
+        setRefNiveau(sanitizeLevels(next))
         showToast('success', 'Niveau supprimé')
         deleteDialogRef.current?.close()
         setCandidateDelete(null)
@@ -270,13 +289,13 @@ export default function NiveauxPageClient() {
             showToast('error', 'Modification non autorisée pour votre rôle.')
             return
         }
-        const next = refNiveau.map((n) => (n.id === row.id ? { ...n, is_enabled: !n.is_enabled } : n))
+        const next = niveauxRaw.map((n) => (n.id === row.id ? applyUpdateAudit({ ...n, is_enabled: !n.is_enabled }, user) : n))
         setRefNiveau(sanitizeLevels(next))
     }
 
     // ===== Import / Export =====
     function exportJSON() {
-        const data = JSON.stringify(refNiveau, null, 2)
+        const data = JSON.stringify(niveauxRaw, null, 2)
         const blob = new Blob([data], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -306,7 +325,7 @@ export default function NiveauxPageClient() {
             try {
                 const incoming = JSON.parse(String(reader.result))
                 if (!Array.isArray(incoming)) throw new Error('JSON attendu: tableau de niveaux')
-                const merged = mergeKeepingUniqueCode(refNiveau, incoming)
+                const merged = mergeKeepingUniqueCode(niveauxRaw, incoming)
                 setRefNiveau(sanitizeLevels(merged))
                 showToast('success', 'Import réussi')
             } catch (err) {
@@ -321,28 +340,31 @@ export default function NiveauxPageClient() {
 
     function mergeKeepingUniqueCode(existing, incoming) {
         const keyOf = (n) => String(n.code || '').trim().toLowerCase()
-        const map = new Map(existing.map((n) => [keyOf(n), n]))
-        for (const raw of incoming) {
+        const map = new Map((existing || []).map((n) => [keyOf(n), ensureAuditFields(n)]))
+        for (const raw of incoming || []) {
             if (!raw) continue
-            const item = {
-                id: raw.id || uuid(),
-                code: String(raw.code || '').trim(),
+            const code = String(raw.code || '').trim()
+            if (!code) continue
+            const key = code.toLowerCase()
+            const prev = map.get(key)
+            const refSetId = raw.ref_set_id ? String(raw.ref_set_id) : prev?.ref_set_id
+            const riskFromSet = refSetId ? setMap.get(refSetId)?.risque : undefined
+            const merged = ensureAuditFields({
+                ...(prev || { id: raw.id || uuid(), code }),
+                code,
                 libelle: String(raw.libelle || '').trim(),
                 ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : undefined,
-                is_enabled: typeof raw.is_enabled === 'boolean' ? raw.is_enabled : true,
-                ref_set_id: raw.ref_set_id ? String(raw.ref_set_id) : undefined,
-                risque: normalizeRisk(raw.risque),
-            }
-            if (!item.code) continue
-            const prev = map.get(keyOf(item)) || {}
-            const refSetId = item.ref_set_id ?? prev.ref_set_id
-            const riskFromSet = refSetId ? setMap.get(refSetId)?.risque : undefined
-            map.set(keyOf(item), {
-                ...prev,
-                ...item,
+                is_enabled: typeof raw.is_enabled === 'boolean' ? raw.is_enabled : (prev?.is_enabled ?? true),
                 ref_set_id: refSetId,
-                risque: normalizeRisk(item.risque ?? prev.risque ?? riskFromSet),
+                risque: normalizeRisk(raw.risque ?? prev?.risque ?? riskFromSet),
+                createdAt: raw.createdAt || prev?.createdAt,
+                createdBy: raw.createdBy || prev?.createdBy,
+                updatedAt: raw.updatedAt || prev?.updatedAt,
+                updatedBy: raw.updatedBy || prev?.updatedBy,
+                deletedAt: raw.deletedAt ?? prev?.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? prev?.deletedBy ?? null,
             })
+            map.set(key, merged)
         }
         return Array.from(map.values())
     }
@@ -353,7 +375,8 @@ export default function NiveauxPageClient() {
             return
         }
         if (!confirm('Supprimer tous les niveaux du référentiel ?')) return
-        setRefNiveau([])
+        const next = (niveauxRaw || []).map((niv) => niv.deletedAt ? niv : applyDeleteAudit(niv, user))
+        setRefNiveau(sanitizeLevels(next))
         showToast('info', 'Référentiel vidé')
     }
 
@@ -362,7 +385,7 @@ export default function NiveauxPageClient() {
         if (!setId) return 1
         // max ordre dans CE set, puis +1
         let max = 0
-        for (const n of refNiveau) {
+        for (const n of niveaux) {
             if (n.ref_set_id === setId) {
                 const o = Number(n.ordre) || 0
                 if (o > max) max = o
@@ -694,7 +717,7 @@ export default function NiveauxPageClient() {
 
             {/* Footer helper */}
             <div className="opacity-60 text-xs">
-                <span className="font-mono">localStorage</span> clé: <span className="font-mono">{LS_LEVELS}</span> (référentiel niveaux) — {refNiveau.length} niveaux
+                <span className="font-mono">localStorage</span> clé: <span className="font-mono">{LS_LEVELS}</span> (référentiel niveaux) — {niveaux.length} niveaux actifs
                 {selectedSetId ? <> — filtre: <span className="font-mono">{selectedSetId === '__NOSET__' ? 'Sans set' : selectedSetId}</span></> : null}
             </div>
         </div>

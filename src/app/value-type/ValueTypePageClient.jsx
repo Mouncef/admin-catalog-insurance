@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRefValueTypes } from '@/providers/AppDataProvider';
 import { SquarePen, Trash2 } from 'lucide-react';
-import {usePermissions} from '@/providers/AuthProvider';
+import {useAuth, usePermissions} from '@/providers/AuthProvider';
+import {applyCreateAudit, applyDeleteAudit, applyUpdateAudit, ensureAuditFields} from '@/lib/utils/audit';
 
 /**
  * Page Next.js — Référentiel des "types de valeur"
@@ -43,10 +44,18 @@ export default function ValueTypePageClient() {
     const [editingFieldIdx, setEditingFieldIdx] = useState(null);  // index du champ en édition (ou null)
     const [fieldDraft, setFieldDraft] = useState(null);            // brouillon champ
     const {canCreate, canUpdate, canDelete} = usePermissions();
+    const {user} = useAuth();
     const formDisabled = editingType ? (editingType.id ? !canUpdate : !canCreate) : false;
     const allowWrite = canUpdate;
 
     useEffect(() => setMounted(true), []);
+    useEffect(() => {
+        if (!mounted) return;
+        const needsMigration = (refValueTypes || []).some((t) => !t?.createdAt);
+        if (needsMigration) {
+            setRefValueTypes((prev) => sanitizeTypes(prev || []));
+        }
+    }, [mounted, refValueTypes, setRefValueTypes]);
 
     // ===== Utils =====
     const uuid = () => (crypto?.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36));
@@ -77,7 +86,19 @@ export default function ValueTypePageClient() {
             // Fields cleaning
             const cleanedFields = sanitizeFields(fields);
 
-            result.push({ id, code, libelle, fields: cleanedFields });
+            const entry = ensureAuditFields({
+                id,
+                code,
+                libelle,
+                fields: cleanedFields,
+                createdAt: t.createdAt,
+                createdBy: t.createdBy,
+                updatedAt: t.updatedAt,
+                updatedBy: t.updatedBy,
+                deletedAt: t.deletedAt ?? null,
+                deletedBy: t.deletedBy ?? null,
+            });
+            result.push(entry);
         }
         return result;
     }
@@ -139,10 +160,13 @@ export default function ValueTypePageClient() {
         return out;
     }
 
+    const valueTypesRaw = useMemo(() => sanitizeTypes(refValueTypes || []), [refValueTypes]);
+    const valueTypes = useMemo(() => valueTypesRaw.filter((t) => !t.deletedAt), [valueTypesRaw]);
+
     // ===== Derived / filters =====
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
-        let base = (refValueTypes || []).slice().sort((a, b) =>
+        let base = valueTypes.slice().sort((a, b) =>
             (sortAsc ? 1 : -1) * ((a.code || '').localeCompare(b.code || '') || (a.libelle || '').localeCompare(b.libelle || ''))
         );
         if (!q) return base;
@@ -151,7 +175,7 @@ export default function ValueTypePageClient() {
             (t.libelle || '').toLowerCase().includes(q) ||
             (t.fields || []).some(f => (f.name || '').toLowerCase().includes(q) || (f.kind || '').toLowerCase().includes(q))
         );
-    }, [refValueTypes, query, sortAsc]);
+    }, [valueTypes, query, sortAsc]);
 
     // Pagination derived
     const totalItems = filtered.length;
@@ -202,16 +226,16 @@ export default function ValueTypePageClient() {
         const cleanedFields = sanitizeFields(editingType.fields || []);
 
         // unicité code globale (CI)
-        const conflict = refValueTypes.find(t => t.code.toLowerCase() === code.toLowerCase() && t.id !== editingType.id);
+        const conflict = valueTypes.find(t => t.code.toLowerCase() === code.toLowerCase() && t.id !== editingType.id);
         if (conflict) return showToast('error', `Le code "${code}" existe déjà`);
 
         if (!editingType.id) {
-            const created = { id: uuid(), code, libelle, fields: cleanedFields };
-            setRefValueTypes(sanitizeTypes([...(refValueTypes || []), created]));
+            const created = applyCreateAudit({ id: uuid(), code, libelle, fields: cleanedFields, deletedAt: null, deletedBy: null }, user);
+            setRefValueTypes(sanitizeTypes([...(valueTypesRaw || []), created]));
             showToast('success', 'Type créé');
         } else {
-            const next = (refValueTypes || []).map(t =>
-                t.id === editingType.id ? { ...t, code, libelle, fields: cleanedFields } : t
+            const next = (valueTypesRaw || []).map(t =>
+                t.id === editingType.id ? applyUpdateAudit({ ...t, code, libelle, fields: cleanedFields }, user) : t
             );
             setRefValueTypes(sanitizeTypes(next));
             showToast('success', 'Type mis à jour');
@@ -234,7 +258,7 @@ export default function ValueTypePageClient() {
             showToast('error', 'Suppression non autorisée pour votre rôle.');
             return;
         }
-        const next = (refValueTypes || []).filter(t => t.id !== candidateDelete.id);
+        const next = (valueTypesRaw || []).map((t) => t.id === candidateDelete.id ? applyDeleteAudit(t, user) : t);
         setRefValueTypes(sanitizeTypes(next));
         showToast('success', 'Type supprimé');
         deleteDialogRef.current?.close();
@@ -338,7 +362,7 @@ export default function ValueTypePageClient() {
 
     // ===== Import/Export/Reset =====
     function exportJSON() {
-        const data = JSON.stringify(refValueTypes || [], null, 2);
+        const data = JSON.stringify(valueTypesRaw || [], null, 2);
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -364,7 +388,7 @@ export default function ValueTypePageClient() {
             try {
                 const incoming = JSON.parse(String(reader.result));
                 if (!Array.isArray(incoming)) throw new Error('JSON attendu: tableau de types');
-                const merged = mergeByCode(refValueTypes || [], incoming);
+                const merged = mergeByCode(valueTypesRaw || [], incoming);
                 setRefValueTypes(sanitizeTypes(merged));
                 showToast('success', 'Import réussi');
             } catch (err) {
@@ -377,17 +401,27 @@ export default function ValueTypePageClient() {
         reader.readAsText(file);
     }
     function mergeByCode(existing, incoming) {
-        const map = new Map((existing || []).map(t => [String(t.code || '').toLowerCase(), t]));
+        const keyOf = (t) => String(t.code || '').trim().toLowerCase();
+        const map = new Map((existing || []).map((t) => [keyOf(t), ensureAuditFields(t)]));
         for (const raw of incoming || []) {
             if (!raw) continue;
-            const key = String(raw.code || '').trim().toLowerCase();
-            if (!key) continue;
-            const base = map.get(key) || { id: uuid(), code: raw.code };
-            map.set(key, {
-                ...base,
-                libelle: raw.libelle ?? base.libelle ?? '',
-                fields: sanitizeFields(raw.fields || base.fields || []),
+            const code = String(raw.code || '').trim();
+            if (!code) continue;
+            const key = code.toLowerCase();
+            const prev = map.get(key);
+            const merged = ensureAuditFields({
+                ...(prev || { id: raw.id || uuid(), code }),
+                code,
+                libelle: raw.libelle ?? prev?.libelle ?? '',
+                fields: sanitizeFields(raw.fields || prev?.fields || []),
+                createdAt: raw.createdAt || prev?.createdAt,
+                createdBy: raw.createdBy || prev?.createdBy,
+                updatedAt: raw.updatedAt || prev?.updatedAt,
+                updatedBy: raw.updatedBy || prev?.updatedBy,
+                deletedAt: raw.deletedAt ?? prev?.deletedAt ?? null,
+                deletedBy: raw.deletedBy ?? prev?.deletedBy ?? null,
             });
+            map.set(key, merged);
         }
         return Array.from(map.values());
     }
@@ -397,7 +431,8 @@ export default function ValueTypePageClient() {
             return;
         }
         if (!confirm('Supprimer tous les types de valeur stockés ?')) return;
-        setRefValueTypes([]);
+        const next = (valueTypesRaw || []).map((type) => type.deletedAt ? type : applyDeleteAudit(type, user));
+        setRefValueTypes(sanitizeTypes(next));
         showToast('info', 'Liste vidée');
     }
 
@@ -882,7 +917,7 @@ export default function ValueTypePageClient() {
 
             {/* Footer helper */}
             <div className="opacity-60 text-xs">
-                <span className="font-mono">localStorage</span> clé: <span className="font-mono">{LS_KEY}</span> — {(refValueTypes || []).length} types
+                <span className="font-mono">localStorage</span> clé: <span className="font-mono">{LS_KEY}</span> — {valueTypes.length} types actifs
             </div>
         </div>
     );

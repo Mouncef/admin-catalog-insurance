@@ -9,6 +9,7 @@ import {useGroupeUIState} from '@/providers/AppDataProvider';
 import { normalizeRisk } from '@/lib/utils/StringUtil';
 import TarifsEditor from '@/components/catalogues/tarifs/TarifsEditor';
 import SubItemModal from '@/components/catalogues/inline/SubItemModal';
+import {usePermissions} from '@/providers/AuthProvider';
 
 const isPlainObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const normalizeSelectionType = (value) => (value === 'checkbox' ? 'checkbox' : 'radio');
@@ -46,6 +47,30 @@ export default function ModulePanelContainer({
     const {groupes, setGroupes, membres, setMembres, gvaleurs, setGvaleurs, gtarifs, setGtarifs} =
         useGroupStore(refs, {ns: catalogueId});
     const {uiState, patchUIState} = useGroupeUIState();
+    const {canCreate, canUpdate, canDelete} = usePermissions();
+    const allowWrite = canUpdate;
+    const allowRemoval = canDelete;
+    const allowCreate = canCreate;
+    const notifyDenied = (message) => {
+        if (typeof showToast === 'function') {
+            showToast('error', message);
+        }
+    };
+    const ensureCanUpdate = () => {
+        if (allowWrite) return true;
+        notifyDenied('Votre rôle ne permet pas de modifier ce module.');
+        return false;
+    };
+    const ensureCanCreate = () => {
+        if (allowCreate) return true;
+        notifyDenied('Votre rôle ne permet pas d’ajouter des groupes.');
+        return false;
+    };
+    const ensureCanDelete = () => {
+        if (allowRemoval) return true;
+        notifyDenied('Votre rôle ne permet pas de supprimer des groupes.');
+        return false;
+    };
 
     const niveauSetOptions = useMemo(
         () =>
@@ -147,6 +172,7 @@ export default function ModulePanelContainer({
     // changement de set: choix UI purge (optionnelle) des valeurs existantes du module
     const changeBaseSet = onChangeNiveauSetBase || legacyOnChangeNiveauSet;
     function handleChangeSetBase(setId) {
+        if (!ensureCanUpdate()) return;
         if (!setId || !niveauSetIdSet.has(setId)) {
             showToast('error', "Groupe de niveaux introuvable — aucun changement appliqué.");
             return;
@@ -170,6 +196,7 @@ export default function ModulePanelContainer({
 
     function handleChangeSetSurco(rawValue) {
         if (!allowMultipleNiveaux || !moduleAllowsSurco) return;
+        if (!ensureCanUpdate()) return;
         const next = rawValue || null;
         if (next && !niveauSetIdSet.has(next)) {
             showToast('error', "Groupe Surco introuvable — aucun changement appliqué.");
@@ -194,6 +221,7 @@ export default function ModulePanelContainer({
 
     function handleToggleOptions(enabled) {
         if (!allowTarifEditor || !setOptionDepthForModule) return;
+        if (!ensureCanUpdate()) return;
         if (enabled) {
             if (baseOptionCount <= 0) {
                 showToast('error', "Aucun niveau disponible pour définir des options.");
@@ -268,6 +296,7 @@ export default function ModulePanelContainer({
     const [typeModal, setTypeModal] = useState(null); // { groupId, categoryId?, value }
 
     const allowSubItems = false;
+    const readOnly = !allowWrite;
 
     useEffect(() => {
         if (tarifEditorGroupId && (!allowTarifEditor || !myGroups.some((g) => g.id === tarifEditorGroupId))) {
@@ -293,17 +322,20 @@ export default function ModulePanelContainer({
     }, [gtarifs, editingTarifGroup]);
 
     function setLocked(gid, locked) {
+        if (!locked && !ensureCanUpdate()) return;
         const curr = uiState[gid] || {};
         patchUIState({[gid]: {...curr, locked: !!locked}});
     }
 
     function openTarifModal(groupId) {
+        if (!ensureCanUpdate()) return;
         setTarifEditorGroupId(groupId);
     }
     function closeTarifModal() {
         setTarifEditorGroupId(null);
     }
     function saveTarifs(groupId, rows) {
+        if (!ensureCanUpdate()) return;
         setGtarifs((prev) => {
             const others = (prev || []).filter((row) => row.groupe_id !== groupId);
             return [...others, ...(rows || [])];
@@ -314,6 +346,7 @@ export default function ModulePanelContainer({
 
     function openSubItemModal(groupId, parentAct, subItem = null) {
         if (!allowSubItems || !parentAct?.id) return;
+        if (!ensureCanUpdate()) return;
         setSubItemModal({ groupId, parentAct, subItem });
     }
 
@@ -322,6 +355,7 @@ export default function ModulePanelContainer({
     }
 
     function saveSubItem({ groupId, parentActId, subItemId, libelle, description, field_type }) {
+        if (!ensureCanUpdate()) return;
         setGroupes((prev) =>
             (prev || []).map((g) => {
                 if (g.id !== groupId) return g;
@@ -347,6 +381,7 @@ export default function ModulePanelContainer({
 
     function removeSubItem(groupId, subItemId) {
         if (!allowSubItems) return;
+        if (!ensureCanUpdate()) return;
         setGroupes((prev) =>
             (prev || []).map((g) => {
                 if (g.id !== groupId) return g;
@@ -374,6 +409,7 @@ export default function ModulePanelContainer({
     }
 
     function openCategoryLabelModal(group, category) {
+        if (!ensureCanUpdate()) return;
         const availableActs = getAvailableActsForCategory(group, category, []);
         if (availableActs.length === 0) {
             showToast('info', "Toutes les garanties de cette catégorie sont déjà regroupées.");
@@ -390,6 +426,7 @@ export default function ModulePanelContainer({
     }
 
     function openEditCategoryLabel(group, category, label) {
+        if (!ensureCanUpdate()) return;
         const keepIds = Array.isArray(label?.actIds) ? label.actIds : [];
         const availableActs = getAvailableActsForCategory(group, category, keepIds);
         if (availableActs.length === 0) {
@@ -407,6 +444,7 @@ export default function ModulePanelContainer({
     }
 
     function deleteCategoryLabel(group, category, label) {
+        if (!ensureCanUpdate()) return;
         const labelId = label?.id;
         if (!group?.id || !category?.id || !labelId) return;
         if (typeof window !== 'undefined') {
@@ -442,6 +480,7 @@ export default function ModulePanelContainer({
     }
 
     function saveCategoryLabelModal() {
+        if (!ensureCanUpdate()) return;
         if (!labelModal) return;
         const libelle = String(labelModal.name || '').trim();
         if (!libelle) {
@@ -499,6 +538,7 @@ export default function ModulePanelContainer({
 
     function openTypeModal(group, category = null) {
         if (moduleRisk !== 'prevoyance' || !group?.id) return;
+        if (!ensureCanUpdate()) return;
         const catId = category?.id || null;
         setTypeModal({
             groupId: group.id,
@@ -516,6 +556,7 @@ export default function ModulePanelContainer({
 
     function saveGroupType(value) {
         if (!typeModal?.groupId) return;
+        if (!ensureCanUpdate()) return;
         const selection = normalizeSelectionType(value || typeModal.value || 'radio');
         setGroupes((prev) =>
             (prev || []).map((g) => {
@@ -572,6 +613,7 @@ export default function ModulePanelContainer({
     }
 
     function moveGroup(gid, dir) {
+        if (!ensureCanUpdate()) return;
         setGroupes((prev) => {
             const mine = (prev || [])
                 .filter((g) => g.catalogue_id === catalogueId && g.ref_module_id === module.id)
@@ -596,6 +638,7 @@ export default function ModulePanelContainer({
 
     // === création
     function createGroup({groupe, selectedActs}) {
+        if (!ensureCanCreate()) return;
         const gid = groupe.id || uuid();
         const payload = {
             id: gid,
@@ -712,6 +755,7 @@ export default function ModulePanelContainer({
 
     // === sauvegarde grille
     function saveGrid(g, {catOrderSelected, orderByAct, valuesByAct}) {
+        if (!ensureCanUpdate()) return;
         // 1) cat_order
         setGroupes((prev) =>
             prev.map((x) =>
@@ -786,6 +830,7 @@ export default function ModulePanelContainer({
     }
 
     function requestDelete(g) {
+        if (!ensureCanDelete()) return;
         if (!confirm('Supprimer ce groupe ?')) return;
         setGroupes((prev) => {
             const kept = (prev || []).filter((x) => x.id !== g.id);
@@ -814,7 +859,7 @@ export default function ModulePanelContainer({
                         <select
                             className="select select-bordered select-sm"
                             value={resolvedBaseSetId || ''}
-                            disabled={niveauSetOptions.length === 0}
+                            disabled={niveauSetOptions.length === 0 || readOnly}
                             onChange={(e) => handleChangeSetBase(e.target.value || null)}
                         >
                             {niveauSetOptions.length === 0 && (
@@ -836,6 +881,7 @@ export default function ModulePanelContainer({
                             <select
                                 className="select select-bordered select-sm"
                                 value={resolvedSurcoSetId || ''}
+                                disabled={readOnly}
                                 onChange={(e) => handleChangeSetSurco(e.target.value || '')}
                             >
                                 <option value="">Suivre la Base</option>
@@ -855,24 +901,26 @@ export default function ModulePanelContainer({
                                 type="checkbox"
                                 className="toggle toggle-sm"
                                 checked={optionsEnabled}
-                                disabled={!allowTarifEditor || baseOptionCount === 0}
+                                disabled={!allowTarifEditor || baseOptionCount === 0 || readOnly}
                                 onChange={(e) => handleToggleOptions(e.target.checked)}
                             />
                         </label>
                     )}
 
-                    <div className="join">
-                        {!createOpen && (
-                            <button className="btn btn-primary join-item" onClick={() => setCreateOpen(true)}>
-                                + Nouveau groupe
-                            </button>
-                        )}
-                        {createOpen && (
-                            <button className="btn btn-ghost join-item" onClick={() => setCreateOpen(false)}>
-                                Annuler
-                            </button>
-                        )}
-                    </div>
+                    {allowCreate && (
+                        <div className="join">
+                            {!createOpen && (
+                                <button className="btn btn-primary join-item" onClick={() => setCreateOpen(true)}>
+                                    + Nouveau groupe
+                                </button>
+                            )}
+                            {createOpen && (
+                                <button className="btn btn-ghost join-item" onClick={() => setCreateOpen(false)}>
+                                    Annuler
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -892,7 +940,7 @@ export default function ModulePanelContainer({
                                             <button
                                                 type="button"
                                                 className="btn btn-xs join-item"
-                                                disabled={isFirst}
+                                                disabled={isFirst || readOnly}
                                                 onClick={() => moveGroup(g.id, 'up')}
                                                 title="Monter"
                                                 aria-label="Monter"
@@ -905,7 +953,7 @@ export default function ModulePanelContainer({
                                             <button
                                                 type="button"
                                                 className="btn btn-xs join-item"
-                                                disabled={isLast}
+                                                disabled={isLast || readOnly}
                                                 onClick={() => moveGroup(g.id, 'down')}
                                                 title="Descendre"
                                                 aria-label="Descendre"
@@ -927,7 +975,7 @@ export default function ModulePanelContainer({
             )}
 
             {/* Création */}
-            {createOpen && (
+            {allowCreate && createOpen && (
                 <InlineGroupEditor
                     key="creator"
                     module={module}
@@ -953,7 +1001,7 @@ export default function ModulePanelContainer({
                     : [];
                 const isPrevModule = moduleRisk === 'prevoyance';
                 const categoryGroups = isPrevModule && g.category_groups ? g.category_groups : null;
-                const canManageLabels = isPrevModule && !locked;
+                const canManageLabels = isPrevModule && !locked && allowWrite;
                 const subItemsByParent = new Map();
                 for (const si of subItems) {
                     if (!subItemsByParent.has(si.parent_act_id)) subItemsByParent.set(si.parent_act_id, []);
@@ -976,7 +1024,7 @@ export default function ModulePanelContainer({
                                     {locked ? (
                                         <>
 
-                                            {allowTarifEditor && (
+                                            {allowTarifEditor && allowWrite && (
                                                 <button
                                                     type="button"
                                                     className="btn btn-sm btn-secondary join-item opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity"
@@ -986,32 +1034,38 @@ export default function ModulePanelContainer({
                                                 </button>
                                             )}
 
-                                            <button
-                                                className="btn btn-sm btn-info join-item opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity"
-                                                aria-label="Modifier la grille"
-                                                onClick={() => setLocked(g.id, false)}
-                                            >
-                                                ✎ Edition
-                                            </button>
+                                            {allowWrite && (
+                                                <button
+                                                    className="btn btn-sm btn-info join-item opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity"
+                                                    aria-label="Modifier la grille"
+                                                    onClick={() => setLocked(g.id, false)}
+                                                >
+                                                    ✎ Edition
+                                                </button>
+                                            )}
                                         </>
 
                                     ) : (
                                         <>
-                                            <button className="btn btn-sm join-item"
-                                                    onClick={() => setActPickerFor(g.id)}>
-                                                Choisir actes
-                                            </button>
-                                            <button className="btn btn-sm btn-error join-item"
-                                                    onClick={() => requestDelete(g)}>
-                                                Supprimer
-                                            </button>
+                                            {allowWrite && (
+                                                <button className="btn btn-sm join-item"
+                                                        onClick={() => setActPickerFor(g.id)}>
+                                                    Choisir actes
+                                                </button>
+                                            )}
+                                            {allowRemoval && (
+                                                <button className="btn btn-sm btn-error join-item"
+                                                        onClick={() => requestDelete(g)}>
+                                                    Supprimer
+                                                </button>
+                                            )}
                                         </>
                                     )}
                                 </div>
                             </div>
 
                             {/* Act picker */}
-                            {!locked && actPickerFor === g.id && (
+                            {allowWrite && !locked && actPickerFor === g.id && (
                                 <div className="mb-4">
                                     <InlineGroupEditor
                                         module={module}
@@ -1027,7 +1081,7 @@ export default function ModulePanelContainer({
 
                             {/* Matrice */}
                             <ReadonlyGroupMatrix
-                                editable={!locked}
+                                editable={allowWrite && !locked}
                                 group={g}
                                 module={module}
                                 niveaux={allNiveauxForPrefill}
@@ -1037,17 +1091,17 @@ export default function ModulePanelContainer({
                                 allowSurco={moduleAllowsSurco}
                                 optionsEnabled={optionsEnabled}
                                 optionLevels={effectiveNiveauxBase}
-                                allowSubItems={allowSubItems}
+                                allowSubItems={allowSubItems && allowWrite}
                                 subItemsMap={subItemsByParent}
-                                onAddSubItem={allowSubItems ? ({ act, subItem }) => openSubItemModal(g.id, act, subItem || null) : undefined}
-                                onRemoveSubItem={allowSubItems ? (subId) => removeSubItem(g.id, subId) : undefined}
+                                onAddSubItem={allowSubItems && allowWrite ? ({ act, subItem }) => openSubItemModal(g.id, act, subItem || null) : undefined}
+                                onRemoveSubItem={allowSubItems && allowWrite ? (subId) => removeSubItem(g.id, subId) : undefined}
                                 categoriesByModule={categoriesByModule}
                                 actsByCategory={actsByCategory}
                                 categoryGroups={categoryGroups}
-                                onAddCategoryLabel={canManageLabels ? (cat) => openCategoryLabelModal(g, cat) : undefined}
-                                onEditCategoryLabel={canManageLabels ? (cat, label) => openEditCategoryLabel(g, cat, label) : undefined}
-                                onDeleteCategoryLabel={canManageLabels ? (cat, label) => deleteCategoryLabel(g, cat, label) : undefined}
-                                onOpenTypeModal={moduleRisk === 'prevoyance' ? openTypeModal : undefined}
+                                onAddCategoryLabel={canManageLabels && allowWrite ? (cat) => openCategoryLabelModal(g, cat) : undefined}
+                                onEditCategoryLabel={canManageLabels && allowWrite ? (cat, label) => openEditCategoryLabel(g, cat, label) : undefined}
+                                onDeleteCategoryLabel={canManageLabels && allowWrite ? (cat, label) => deleteCategoryLabel(g, cat, label) : undefined}
+                                onOpenTypeModal={moduleRisk === 'prevoyance' && allowWrite ? openTypeModal : undefined}
                                 membres={membres}
                                 gvaleurs={gvaleurs}
                                 onSave={(payload) => saveGrid(g, payload)}
@@ -1058,7 +1112,7 @@ export default function ModulePanelContainer({
                 );
             })}
 
-            {allowTarifEditor && editingTarifGroup && (
+            {allowTarifEditor && allowWrite && editingTarifGroup && (
                 <TarifsEditor
                     group={editingTarifGroup}
                     niveauxBase={effectiveNiveauxBase}
@@ -1071,7 +1125,7 @@ export default function ModulePanelContainer({
                 />
             )}
 
-            {allowSubItems && subItemModal && (
+            {allowSubItems && allowWrite && subItemModal && (
                 <SubItemModal
                     open
                     parentActLabel={subItemModal.parentAct?.libelle || subItemModal.parentAct?.code || ''}

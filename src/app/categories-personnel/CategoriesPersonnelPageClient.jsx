@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { SquarePen, Trash2 } from "lucide-react";
 import { useRefCatPersonnel } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep } from '@/lib/utils/StringUtil'
+import {usePermissions} from '@/providers/AuthProvider';
 
 export default function CategoriesPersonnelPageClient() {
     const { refCatPersonnel, setRefCatPersonnel } = useRefCatPersonnel()
@@ -20,6 +21,8 @@ export default function CategoriesPersonnelPageClient() {
 
     const [editing, setEditing] = useState(null)
     const [candidateDelete, setCandidateDelete] = useState(null)
+    const {canCreate, canUpdate, canDelete} = usePermissions();
+    const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -86,16 +89,33 @@ export default function CategoriesPersonnelPageClient() {
 
     // ===== CRUD =====
     function openCreate() {
+        if (!canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
         setEditing({ id: null, code: '', libelle: '', ordre: nextOrdre(), is_enabled: true })
         upsertDialogRef.current?.showModal()
     }
     function openEdit(item) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         setEditing({ ...item })
         upsertDialogRef.current?.showModal()
     }
     function submitUpsert(e) {
         e?.preventDefault?.()
         if (!editing) return
+        const creating = !editing.id
+        if (creating && !canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
+        if (!creating && !canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const code = (editing.code || '').trim()
         if (!code) return showToast('error', 'Code requis')
         if (code.length > 80) return showToast('error', 'Code ≤ 80 caractères')
@@ -123,10 +143,18 @@ export default function CategoriesPersonnelPageClient() {
         setEditing(null)
     }
     function requestDelete(item) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         setCandidateDelete(item); deleteDialogRef.current?.showModal()
     }
     function confirmDelete() {
         if (!candidateDelete) return
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         const next = (refCatPersonnel || []).filter(x => x.id !== candidateDelete.id)
         setRefCatPersonnel(sanitizeList(next))
         showToast('success', 'Catégorie supprimée')
@@ -136,6 +164,10 @@ export default function CategoriesPersonnelPageClient() {
         deleteDialogRef.current?.close(); setCandidateDelete(null)
     }
     function move(item, dir) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const ids = [...refCatPersonnel].sort((a, b) => a.ordre - b.ordre).map(x => x.id)
         const idx = ids.indexOf(item.id)
         if (idx < 0) return
@@ -148,10 +180,18 @@ export default function CategoriesPersonnelPageClient() {
         setRefCatPersonnel(sanitizeList(next))
     }
     function toggleEnabled(item) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const next = (refCatPersonnel || []).map(x => x.id === item.id ? { ...x, is_enabled: !x.is_enabled } : x)
         setRefCatPersonnel(next)
     }
     function resetAll() {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         if (!confirm('Vider toutes les catégories de personnel ?')) return
         setRefCatPersonnel([])
         showToast('info', 'Liste vidée')
@@ -172,8 +212,8 @@ export default function CategoriesPersonnelPageClient() {
             <div className="flex items-center justify-between gap-2">
                 <h1 className="text-2xl font-bold">Référentiel — Catégories de personnel</h1>
                 <div className="flex gap-2">
-                    <button className="btn btn-primary" onClick={openCreate}>+ Nouvelle catégorie</button>
-                    <button className="btn btn-ghost" onClick={resetAll}>Réinitialiser</button>
+                    <button className="btn btn-primary" onClick={openCreate} disabled={!canCreate}>+ Nouvelle catégorie</button>
+                    <button className="btn btn-ghost" onClick={resetAll} disabled={!canDelete}>Réinitialiser</button>
                 </div>
             </div>
 
@@ -216,20 +256,22 @@ export default function CategoriesPersonnelPageClient() {
                                 <tr key={it.id}>
                                     <td>
                                         <div className="join">
-                                            <button className="btn btn-xs join-item" onClick={() => move(it, 'up')} title="Monter">▲</button>
+                                            <button className="btn btn-xs join-item" onClick={() => move(it, 'up')} title="Monter" disabled={!canUpdate}>▲</button>
                                             <span className="join-item btn btn-xs btn-ghost">{it.ordre}</span>
-                                            <button className="btn btn-xs join-item" onClick={() => move(it, 'down')} title="Descendre">▼</button>
+                                            <button className="btn btn-xs join-item" onClick={() => move(it, 'down')} title="Descendre" disabled={!canUpdate}>▼</button>
                                         </div>
                                     </td>
                                     <td><div className="font-mono font-medium">{it.code}</div></td>
                                     <td className="max-w-[520px]"><div className="truncate" title={it.libelle}>{it.libelle || <span className="opacity-50">—</span>}</div></td>
                                     <td>
-                                        <input type="checkbox" className="toggle" checked={!!it.is_enabled} onChange={() => toggleEnabled(it)} />
+                                        <input type="checkbox" className="toggle" checked={!!it.is_enabled} onChange={() => toggleEnabled(it)} disabled={!canUpdate}/>
                                     </td>
                                     <td className="text-right">
                                         <div className="join justify-end">
-                                            <button className="btn btn-sm join-item" onClick={() => openEdit(it)}><SquarePen size={16} /></button>
-                                            <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(it)}><Trash2 size={16} /></button>
+                                            <button className="btn btn-sm join-item" onClick={() => openEdit(it)} disabled={!canUpdate}><SquarePen size={16} /></button>
+                                            {canDelete && (
+                                                <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(it)}><Trash2 size={16} /></button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -272,6 +314,7 @@ export default function CategoriesPersonnelPageClient() {
                 <div className="modal-box w-11/12 max-w-3xl">
                     <h3 className="font-bold text-lg">{editing?.id ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</h3>
                     <form className="mt-4" onSubmit={submitUpsert}>
+                        <fieldset disabled={formDisabled} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                             <label className="floating-label md:col-span-8">
                                 <span>Libellé</span>
@@ -316,14 +359,16 @@ export default function CategoriesPersonnelPageClient() {
                                         className="toggle"
                                         checked={!!editing?.is_enabled}
                                         onChange={(e) => setEditing(v => ({ ...v, is_enabled: e.target.checked }))}
+                                        disabled={!canUpdate}
                                     />
                                 </label>
                             </div>
                         </div>
+                        </fieldset>
 
                         <div className="modal-action mt-6">
                             <button type="button" className="btn btn-ghost" onClick={() => { upsertDialogRef.current?.close(); setEditing(null) }}>Annuler</button>
-                            <button type="submit" className="btn btn-primary">Enregistrer</button>
+                            <button type="submit" className="btn btn-primary" disabled={formDisabled}>Enregistrer</button>
                         </div>
                     </form>
                 </div>
@@ -347,7 +392,7 @@ export default function CategoriesPersonnelPageClient() {
                     </div>
                     <div className="modal-action">
                         <button className="btn" onClick={cancelDelete}>Annuler</button>
-                        <button className="btn btn-error" onClick={confirmDelete}>Supprimer</button>
+                        <button className="btn btn-error" onClick={confirmDelete} disabled={!canDelete}>Supprimer</button>
                     </div>
                 </div>
                 <form method="dialog" className="modal-backdrop"><button>close</button></form>

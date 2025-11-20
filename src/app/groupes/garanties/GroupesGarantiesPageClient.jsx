@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRefModules, useRefCategories } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep, normalizeRisk } from "@/lib/utils/StringUtil"
 import { SquarePen, Trash2 } from "lucide-react"
+import {usePermissions} from '@/providers/AuthProvider';
 
 export default function GroupesGarantiesPageClient() {
     const RISK_OPTIONS = [
@@ -34,6 +35,8 @@ export default function GroupesGarantiesPageClient() {
 
     const [editing, setEditing] = useState(null)
     const [candidateDelete, setCandidateDelete] = useState(null)
+    const {canCreate, canUpdate, canDelete} = usePermissions();
+    const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -161,6 +164,10 @@ export default function GroupesGarantiesPageClient() {
 
     // ======= CRUD =======
     function openCreate() {
+        if (!canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
         const availableModules = modulesForRisk.length ? modulesForRisk : modulesNormalized
         const defaultModuleId = moduleFilter !== 'all' ? moduleFilter : (availableModules[0]?.id || '')
         const moduleRow = moduleMap.get(defaultModuleId)
@@ -183,6 +190,10 @@ export default function GroupesGarantiesPageClient() {
     }
 
     function openEdit(cat) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const mod = moduleMap.get(cat.ref_module_id)
         const risque = normalizeRisk(cat.risque ?? mod?.risque)
         setEditing({ ...cat, risque })
@@ -192,6 +203,15 @@ export default function GroupesGarantiesPageClient() {
     function submitUpsert(e) {
         e?.preventDefault?.()
         if (!editing) return
+        const creating = !editing.id
+        if (creating && !canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
+        if (!creating && !canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const ref_module_id = String(editing.ref_module_id || '')
         if (!ref_module_id || !moduleMap.has(ref_module_id)) return showToast('error', 'Module requis')
 
@@ -225,12 +245,20 @@ export default function GroupesGarantiesPageClient() {
     }
 
     function requestDelete(cat) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         setCandidateDelete(cat)
         deleteDialogRef.current?.showModal()
     }
 
     function confirmDelete() {
         if (!candidateDelete) return
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         const next = sanitizeCategories(refCategories.filter((c) => c.id !== candidateDelete.id), modulesNormalized)
         setRefCategories(next)
         showToast('success', 'Catégorie supprimée')
@@ -322,6 +350,16 @@ export default function GroupesGarantiesPageClient() {
         return Array.from(map.values())
     }
 
+    function resetAll() {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
+        if (!confirm('Supprimer tous les groupes de garanties ?')) return
+        setRefCategories([])
+        showToast('info', 'Référentiel vidé')
+    }
+
     if (!mounted) {
         return (
             <div className="p-6">
@@ -349,13 +387,13 @@ export default function GroupesGarantiesPageClient() {
             <div className="flex items-center justify-between gap-2">
                 <h1 className="text-2xl font-bold">Référentiel — Groupes de garanties</h1>
                 <div className="flex gap-2">
-                    <button className="btn btn-primary" onClick={openCreate}>+ Nouveau groupe de garanties</button>
+                    <button className="btn btn-primary" onClick={openCreate} disabled={!canCreate}>+ Nouveau groupe de garanties</button>
                     <div className="join">
                         {/* <button className="btn join-item" onClick={exportJSON}>Export JSON</button>
-            <button className="btn join-item" onClick={triggerImport}>Import JSON</button>
+            <button className="btn join-item" onClick={triggerImport} disabled={!canUpdate}>Import JSON</button>
             <input ref={importInputRef} type="file" accept="application/json" className="hidden" onChange={onImportFileChange} /> */}
                     </div>
-                    <button className="btn btn-ghost" onClick={() => { setRefCategories([]); showToast('info', 'Référentiel vidé') }}>Réinitialiser</button>
+                    <button className="btn btn-ghost" onClick={resetAll} disabled={!canDelete}>Réinitialiser</button>
                 </div>
             </div>
 
@@ -438,12 +476,14 @@ export default function GroupesGarantiesPageClient() {
                                                     className="btn btn-xs join-item"
                                                     onClick={() => move(c, 'up')}
                                                     title="Monter"
+                                                    disabled={!canUpdate}
                                                 >▲</button>
                                                 <span className="join-item btn btn-xs btn-ghost">{c.ordre}</span>
                                                 <button
                                                     className="btn btn-xs join-item"
                                                     onClick={() => move(c, 'down')}
                                                     title="Descendre"
+                                                    disabled={!canUpdate}
                                                 >▼</button>
                                             </div>
                                         </td>
@@ -451,12 +491,14 @@ export default function GroupesGarantiesPageClient() {
                                         <td className="max-w-[520px]"><div className="truncate" title={c.libelle}>{c.libelle || <span className="opacity-50">—</span>}</div></td>
                                         <td className="text-right">
                                             <div className="join justify-end">
-                                                <button className="btn btn-sm join-item" onClick={() => openEdit(c)}>
+                                                <button className="btn btn-sm join-item" onClick={() => openEdit(c)} disabled={!canUpdate}>
                                                     <SquarePen size={16} />
                                                 </button>
-                                                <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(c)}>
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                {canDelete && (
+                                                    <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(c)}>
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -575,7 +617,7 @@ export default function GroupesGarantiesPageClient() {
 
                             <div className="modal-action">
                                 <button type="button" className="btn btn-ghost" onClick={() => { upsertDialogRef.current?.close(); setEditing(null) }}>Annuler</button>
-                                <button type="submit" className="btn btn-primary">Enregistrer</button>
+                                <button type="submit" className="btn btn-primary" disabled={formDisabled}>Enregistrer</button>
                             </div>
                         </form>
                     </fieldset>
@@ -601,7 +643,7 @@ export default function GroupesGarantiesPageClient() {
                     </div>
                     <div className="modal-action">
                         <button className="btn" onClick={cancelDelete}>Annuler</button>
-                        <button className="btn btn-error" onClick={confirmDelete}>Supprimer</button>
+                        <button className="btn btn-error" onClick={confirmDelete} disabled={!canDelete}>Supprimer</button>
                     </div>
                 </div>
                 <form method="dialog" className="modal-backdrop">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { SquarePen, Trash2 } from "lucide-react";
 import { useRefRegimes } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep } from '@/lib/utils/StringUtil'
+import {usePermissions} from '@/providers/AuthProvider';
 
 export default function RegimesPageClient() {
     const { refRegimes, setRefRegimes } = useRefRegimes()
@@ -20,6 +21,8 @@ export default function RegimesPageClient() {
 
     const [editing, setEditing] = useState(null)
     const [candidateDelete, setCandidateDelete] = useState(null)
+    const {canCreate, canUpdate, canDelete} = usePermissions();
+    const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -72,13 +75,32 @@ export default function RegimesPageClient() {
     useEffect(() => { if (page > totalPages) setPage(totalPages) }, [totalPages, page])
 
     function openCreate() {
+        if (!canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
         setEditing({ id: null, code: '', libelle: '', ordre: nextOrdre(), is_enabled: true })
         upsertDialogRef.current?.showModal()
     }
-    function openEdit(item) { setEditing({ ...item }); upsertDialogRef.current?.showModal() }
+    function openEdit(item) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
+        setEditing({ ...item }); upsertDialogRef.current?.showModal()
+    }
     function submitUpsert(e) {
         e?.preventDefault?.()
         if (!editing) return
+        const creating = !editing.id
+        if (creating && !canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
+        if (!creating && !canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const code = (editing.code || '').trim()
         if (!code) return showToast('error', 'Code requis')
         const exists = refRegimes.find(x => x.code.toLowerCase() === code.toLowerCase() && x.id !== editing.id)
@@ -102,9 +124,19 @@ export default function RegimesPageClient() {
         }
         upsertDialogRef.current?.close(); setEditing(null)
     }
-    function requestDelete(item) { setCandidateDelete(item); deleteDialogRef.current?.showModal() }
+    function requestDelete(item) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
+        setCandidateDelete(item); deleteDialogRef.current?.showModal()
+    }
     function confirmDelete() {
         if (!candidateDelete) return
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         const next = (refRegimes || []).filter(x => x.id !== candidateDelete.id)
         setRefRegimes(sanitizeList(next))
         showToast('success', 'Régime supprimé')
@@ -112,6 +144,10 @@ export default function RegimesPageClient() {
     }
     function cancelDelete() { deleteDialogRef.current?.close(); setCandidateDelete(null) }
     function move(item, dir) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const ids = [...refRegimes].sort((a, b) => a.ordre - b.ordre).map(x => x.id)
         const i = ids.indexOf(item.id); const j = dir === 'up' ? i - 1 : i + 1
         if (i < 0 || j < 0 || j >= ids.length) return
@@ -121,6 +157,10 @@ export default function RegimesPageClient() {
         setRefRegimes(sanitizeList(next))
     }
     function toggleEnabled(item) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const next = (refRegimes || []).map(x => x.id === item.id ? { ...x, is_enabled: !x.is_enabled } : x)
         setRefRegimes(next)
     }
@@ -193,11 +233,13 @@ export default function RegimesPageClient() {
                                     </td>
                                     <td><div className="font-mono font-medium">{it.code}</div></td>
                                     <td className="max-w-[520px]"><div className="truncate" title={it.libelle}>{it.libelle || <span className="opacity-50">—</span>}</div></td>
-                                    <td><input type="checkbox" className="toggle" checked={!!it.is_enabled} onChange={() => toggleEnabled(it)} /></td>
+                                    <td><input type="checkbox" className="toggle" checked={!!it.is_enabled} onChange={() => toggleEnabled(it)} disabled={!canUpdate} /></td>
                                     <td className="text-right">
                                         <div className="join justify-end">
-                                            <button className="btn btn-sm join-item" onClick={() => openEdit(it)}><SquarePen size={16} /></button>
-                                            <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(it)}><Trash2 size={16} /></button>
+                                            <button className="btn btn-sm join-item" onClick={() => openEdit(it)} disabled={!canUpdate}><SquarePen size={16} /></button>
+                                            {canDelete && (
+                                                <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(it)}><Trash2 size={16} /></button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -236,6 +278,7 @@ export default function RegimesPageClient() {
                 <div className="modal-box w-11/12 max-w-3xl">
                     <h3 className="font-bold text-lg">{editing?.id ? 'Modifier le régime' : 'Nouveau régime'}</h3>
                     <form className="mt-4" onSubmit={submitUpsert}>
+                        <fieldset disabled={formDisabled} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                             <label className="floating-label md:col-span-8">
                                 <span>Libellé</span>
@@ -273,13 +316,14 @@ export default function RegimesPageClient() {
                             <div className="md:col-span-4">
                                 <label className="label h-12 px-3 border border-base-300 rounded-box bg-base-100 flex justify-between items-center">
                                     <span className="label-text">Activé</span>
-                                    <input type="checkbox" className="toggle" checked={!!editing?.is_enabled} onChange={(e) => setEditing(v => ({ ...v, is_enabled: e.target.checked }))} />
+                                    <input type="checkbox" className="toggle" checked={!!editing?.is_enabled} onChange={(e) => setEditing(v => ({ ...v, is_enabled: e.target.checked }))} disabled={!canUpdate}/>
                                 </label>
                             </div>
                         </div>
+                        </fieldset>
                         <div className="modal-action mt-6">
                             <button type="button" className="btn btn-ghost" onClick={() => { upsertDialogRef.current?.close(); setEditing(null) }}>Annuler</button>
-                            <button type="submit" className="btn btn-primary">Enregistrer</button>
+                            <button type="submit" className="btn btn-primary" disabled={formDisabled}>Enregistrer</button>
                         </div>
                     </form>
                 </div>
@@ -296,7 +340,7 @@ export default function RegimesPageClient() {
                     </div>
                     <div className="modal-action">
                         <button className="btn" onClick={() => { deleteDialogRef.current?.close(); setCandidateDelete(null) }}>Annuler</button>
-                        <button className="btn btn-error" onClick={confirmDelete}>Supprimer</button>
+                        <button className="btn btn-error" onClick={confirmDelete} disabled={!canDelete}>Supprimer</button>
                     </div>
                 </div>
                 <form method="dialog" className="modal-backdrop"><button>close</button></form>

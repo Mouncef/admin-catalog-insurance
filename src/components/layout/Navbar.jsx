@@ -4,6 +4,7 @@ import ThemeDropdown from "@/components/layout/ThemeDropdown";
 import {PanelLeft, PanelLeftClose, Download, Upload, HardDriveDownload, HardDriveUpload} from "lucide-react";
 import { defaultSettings } from "@/lib/settings/default"; // 👈 SETTINGS_VERSION retiré
 import { sourcesFromDefault } from "@/providers/AppDataProvider"; // OK, composant client → client
+import {useAuth} from '@/providers/AuthProvider';
 
 
 // Helpers si tu ne veux pas importer depuis le provider :
@@ -226,6 +227,13 @@ export function exportAppLikeDefault(ns = 'app:') {
 export default function Navbar({ drawerId = "my-drawer-2" }) {
     const [collapsed, setCollapsed] = useState(false);
     const [toast, setToast] = useState(null)
+    const {user, logout} = useAuth();
+    const initials = (user?.displayName || user?.username || '?')
+        .split(' ')
+        .filter(Boolean)
+        .map((part) => part[0]?.toUpperCase())
+        .join('')
+        .slice(0, 2) || 'NA';
 
     // Lire l’état persistant au chargement (optionnel)
     useEffect(() => {
@@ -394,27 +402,28 @@ export default function Navbar({ drawerId = "my-drawer-2" }) {
                 <div className="dropdown dropdown-end">
                     <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
                         <div className="avatar avatar-online avatar-placeholder">
-                            <div className="bg-neutral text-neutral-content w-9 rounded-full">
-                                <span className="text-xl">MZ</span>
+                            <div className="bg-primary text-primary-content w-9 rounded-full">
+                                <span className="text-sm font-semibold">{initials}</span>
                             </div>
                         </div>
-                        {/*<div className="w-10 rounded-full">
-                            <img
-                                alt="Tailwind CSS Navbar component"
-                                src="https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp"/>
-                        </div>*/}
                     </div>
                     <ul
                         tabIndex={0}
-                        className="menu menu-sm dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
+                        className="menu menu-sm dropdown-content bg-base-100 rounded-box z-1 mt-3 w-56 p-3 shadow space-y-2">
+                        <li className="menu-title">Session</li>
                         <li>
-                            <a className="justify-between">
-                                Profile
-                                <span className="badge">New</span>
-                            </a>
+                            <div className="flex flex-col">
+                                <span className="font-semibold">{user?.displayName || user?.username}</span>
+                                <span className="text-xs opacity-70">
+                                    {Array.isArray(user?.roles) ? user.roles.join(', ') : '—'}
+                                </span>
+                            </div>
                         </li>
-                        <li><a>Settings</a></li>
-                        <li><a>Logout</a></li>
+                        <li>
+                            <button type="button" onClick={logout}>
+                                Se déconnecter
+                            </button>
+                        </li>
                     </ul>
                 </div>
             </div>

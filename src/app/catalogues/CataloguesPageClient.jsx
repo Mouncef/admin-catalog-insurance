@@ -14,6 +14,7 @@ import {
 } from '@/providers/AppDataProvider'
 import { useMultiStorage } from '@/providers/MultiStorageProvider'
 import {Eye, Copy, SquarePen, Trash2, Columns3Cog} from "lucide-react"
+import {usePermissions} from '@/providers/AuthProvider';
 
 export default function CataloguesPageClient() {
     const LS_OFFRES = 'app:offres_v1'
@@ -36,6 +37,7 @@ export default function CataloguesPageClient() {
     const NS_KEYS = { groupes: 'groupes', membres: 'membres', gvaleurs: 'gvaleurs', gtarifs: 'gtarifs' }
 
     const [mounted, setMounted] = useState(false)
+    const {canCreate, canUpdate, canDelete} = usePermissions();
     const [offerFilter, setOfferFilter] = useState('all')
     const [query, setQuery] = useState('')
     const [yearFilter, setYearFilter] = useState('all')
@@ -54,6 +56,7 @@ export default function CataloguesPageClient() {
     const [candidateDelete, setCandidateDelete] = useState(null)
 
     useEffect(() => { setMounted(true) }, [])
+    const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     // ===== Utils =====
     function uuid() {
@@ -233,6 +236,10 @@ export default function CataloguesPageClient() {
 
     // ===== CRUD =====
     function openCreate() {
+        if (!canCreate) {
+            showToast('error', 'Vous n’avez pas les droits pour créer un catalogue.');
+            return;
+        }
         const defaultOfferId = offerFilter !== 'all' ? offerFilter : (refOffers[0]?.id || '')
         const defaultCats = cleanCatalogueCatIds(defaultCatalogueCatIds)
         setEditing({
@@ -250,12 +257,20 @@ export default function CataloguesPageClient() {
         upsertDialogRef.current?.showModal()
     }
     function openEdit(row) {
+        if (!canUpdate) {
+            showToast('error', 'Vous n’avez pas les droits pour modifier un catalogue.');
+            return;
+        }
         const cleanedCats = cleanCatalogueCatIds(row?.cat_personnel_ids)
         const fallbackCats = cleanedCats.length > 0 ? cleanedCats : cleanCatalogueCatIds(defaultCatalogueCatIds)
         setEditing({...row, __dupFromId: null, cat_personnel_ids: fallbackCats})
         upsertDialogRef.current?.showModal()
     }
     function duplicateAsNew(row) {
+        if (!canCreate) {
+            showToast('error', 'Vous n’avez pas les droits pour dupliquer un catalogue.');
+            return;
+        }
         const cleanedCats = cleanCatalogueCatIds(row?.cat_personnel_ids)
         const copy = {
             ...row,
@@ -270,6 +285,10 @@ export default function CataloguesPageClient() {
 
     // === suppression en cascade des données d’un catalogue ===
     function deleteCatalogueData(catalogueId) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.');
+            return;
+        }
         if (!catalogueId) return
 
         // 1) récupérer les groupes liés (globaux + namespacés)
@@ -428,6 +447,15 @@ export default function CataloguesPageClient() {
     function submitUpsert(e) {
         e?.preventDefault?.()
         if (!editing) return
+        const creating = !editing.id
+        if (creating && !canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.');
+            return;
+        }
+        if (!creating && !canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.');
+            return;
+        }
 
         const offre_id = String(editing.offre_id || '')
         if (!offre_id || !offerMap.has(offre_id)) return showToast('error', 'Offre requise')
@@ -494,12 +522,20 @@ export default function CataloguesPageClient() {
     }
 
     function requestDelete(row) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.');
+            return;
+        }
         setCandidateDelete(row)
         deleteDialogRef.current?.showModal()
     }
 
     function confirmDelete() {
         if (!candidateDelete) return
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.');
+            return;
+        }
         // suppression en cascade
         deleteCatalogueData(candidateDelete.id)
 
@@ -541,7 +577,9 @@ export default function CataloguesPageClient() {
             <div className="flex items-center justify-between gap-2">
                 <h1 className="text-2xl font-bold">Administration — Catalogues</h1>
                 <div className="flex gap-2">
-                    <button className="btn btn-primary" onClick={openCreate}>+ Nouveau catalogue</button>
+                    <button className="btn btn-primary" onClick={openCreate} disabled={!canCreate}>
+                        + Nouveau catalogue
+                    </button>
                 </div>
             </div>
 
@@ -671,12 +709,12 @@ export default function CataloguesPageClient() {
                                         <td className="text-right">
                                             <div className="join justify-end">
                                                 <div className="tooltip" data-tip="modifier">
-                                                    <button className="btn btn-sm join-item" onClick={() => openEdit(c)}>
+                                                    <button className="btn btn-sm join-item" onClick={() => openEdit(c)} disabled={!canUpdate}>
                                                         <SquarePen size={16}/>
                                                     </button>
                                                 </div>
                                                 <div className="tooltip" data-tip="dupliquer">
-                                                    <button className="btn btn-sm join-item" onClick={() => duplicateAsNew(c)}>
+                                                    <button className="btn btn-sm join-item" onClick={() => duplicateAsNew(c)} disabled={!canCreate}>
                                                         <Copy size={16}/>
                                                     </button>
                                                 </div>
@@ -690,11 +728,13 @@ export default function CataloguesPageClient() {
                                                         <Columns3Cog size={16}/>
                                                     </Link>
                                                 </div>
-                                                <div className="tooltip" data-tip="supprimer">
-                                                    <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(c)}>
-                                                        <Trash2 size={16}/>
-                                                    </button>
-                                                </div>
+                                                {canDelete && (
+                                                    <div className="tooltip" data-tip="supprimer">
+                                                        <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(c)}>
+                                                            <Trash2 size={16}/>
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -738,7 +778,7 @@ export default function CataloguesPageClient() {
             <dialog ref={upsertDialogRef} className="modal">
                 <div className="modal-box w-11/12 max-w-4xl">
                     <h3 className="font-bold text-lg">{editing?.id ? 'Modifier un catalogue' : 'Nouveau catalogue'}</h3>
-                    <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                    <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4" disabled={formDisabled}>
                         <form className="mt-4" onSubmit={submitUpsert}>
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                                 <label className="floating-label md:col-span-12">
@@ -890,7 +930,7 @@ export default function CataloguesPageClient() {
                     </div>
                     <div className="modal-action">
                         <button className="btn" onClick={cancelDelete}>Annuler</button>
-                        <button className="btn btn-error" onClick={confirmDelete}>Supprimer</button>
+                        <button className="btn btn-error" onClick={confirmDelete} disabled={!canDelete}>Supprimer</button>
                     </div>
                 </div>
                 <form method="dialog" className="modal-backdrop">

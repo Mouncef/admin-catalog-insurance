@@ -5,6 +5,7 @@ import { useRefModules, useRefCategories, useRefActs } from '@/providers/AppData
 import { sanitizeUpperKeep, normalizeRisk } from '@/lib/utils/StringUtil'
 import { SquarePen, Trash2, Info } from "lucide-react";
 import { buildVirtualCategory, makeUngroupedCategoryId, isUngroupedCategoryId } from '@/lib/utils/categoryUtils'
+import {usePermissions} from '@/providers/AuthProvider';
 
 /**
  * Page Next.js (JSX) — Référentiel des ACTES
@@ -49,6 +50,8 @@ export default function GarantiesPageClient() {
 
     const [editing, setEditing] = useState(null) // acte en édition
     const [candidateDelete, setCandidateDelete] = useState(null)
+    const {canCreate, canUpdate, canDelete} = usePermissions();
+    const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -238,6 +241,10 @@ export default function GarantiesPageClient() {
 
     // ===== CRUD =====
     function openCreate() {
+        if (!canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
         // Pré-sélection en fonction des filtres
         const availableModules = modulesForRisk.length ? modulesForRisk : refModules
         let defaultModuleId = moduleFilter !== 'all' ? moduleFilter : (availableModules[0]?.id || '')
@@ -265,6 +272,10 @@ export default function GarantiesPageClient() {
     }
 
     function openEdit(act) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const cat = categoryMap.get(act.ref_categorie_id || '')
         const moduleId = act.ref_module_id || cat?.ref_module_id
         const mod = moduleMap.get(moduleId || '')
@@ -276,6 +287,15 @@ export default function GarantiesPageClient() {
     function submitUpsert(e) {
         e?.preventDefault?.()
         if (!editing) return
+        const creating = !editing.id
+        if (creating && !canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
+        if (!creating && !canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
 
         const moduleId = editing.ref_module_id || categoryMap.get(editing.ref_categorie_id || '')?.ref_module_id
         if (!moduleId) return showToast('error', 'Module requis')
@@ -317,12 +337,20 @@ export default function GarantiesPageClient() {
     }
 
     function requestDelete(act) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         setCandidateDelete(act)
         deleteDialogRef.current?.showModal()
     }
 
     function confirmDelete() {
         if (!candidateDelete) return
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         const next = sanitizeActs(refActs.filter((a) => a.id !== candidateDelete.id))
         setRefActs(next)
         showToast('success', 'Acte supprimé')
@@ -336,6 +364,10 @@ export default function GarantiesPageClient() {
     }
 
     function move(act, dir) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         // Réordonne uniquement à l'intérieur de la même catégorie
         const currentCat = act.ref_categorie_id
         const siblings = filtered.filter((a) => a.ref_categorie_id === currentCat).sort((a, b) => a.ordre - b.ordre)
@@ -371,9 +403,19 @@ export default function GarantiesPageClient() {
         URL.revokeObjectURL(url)
     }
 
-    function triggerImport() { importInputRef.current?.click() }
+    function triggerImport() {
+        if (!canUpdate) {
+            showToast('error', 'Import non autorisé pour votre rôle.')
+            return
+        }
+        importInputRef.current?.click()
+    }
 
     function onImportFileChange(e) {
+        if (!canUpdate) {
+            showToast('error', 'Import non autorisé pour votre rôle.')
+            return
+        }
         const file = e.target.files?.[0]
         if (!file) return
         const reader = new FileReader()
@@ -417,6 +459,10 @@ export default function GarantiesPageClient() {
     }
 
     function resetAll() {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         if (!confirm('Supprimer tous les actes stockés ?')) return
         setRefActs([])
         showToast('info', 'Liste vidée')
@@ -486,13 +532,13 @@ export default function GarantiesPageClient() {
             <div className="flex items-center justify-between gap-2">
                 <h1 className="text-2xl font-bold">Référentiel — Garanties</h1>
                 <div className="flex gap-2">
-                    <button className="btn btn-primary" onClick={openCreate}>+ Nouvelle garantie</button>
+                    <button className="btn btn-primary" onClick={openCreate} disabled={!canCreate}>+ Nouvelle garantie</button>
                     <div className="join">
                         {/* <button className="btn join-item" onClick={exportJSON}>Export JSON</button> */}
-                        {/* <button className="btn join-item" onClick={triggerImport}>Import JSON</button> */}
+                        {/* <button className="btn join-item" onClick={triggerImport} disabled={!canUpdate}>Import JSON</button> */}
                         {/* <input ref={importInputRef} type="file" accept="application/json" className="hidden" onChange={onImportFileChange} /> */}
                     </div>
-                    <button className="btn btn-ghost" onClick={resetAll}>Réinitialiser</button>
+                    <button className="btn btn-ghost" onClick={resetAll} disabled={!canDelete}>Réinitialiser</button>
                 </div>
             </div>
             {refCategories.length === 0 && (
@@ -590,9 +636,9 @@ export default function GarantiesPageClient() {
                                         </td>
                                         <td>
                                             <div className="join">
-                                                <button className="btn btn-xs join-item" onClick={() => move(a, 'up')} title="Monter">▲</button>
+                                                <button className="btn btn-xs join-item" onClick={() => move(a, 'up')} title="Monter" disabled={!canUpdate}>▲</button>
                                                 <span className="join-item btn btn-xs btn-ghost">{a.ordre}</span>
-                                                <button className="btn btn-xs join-item" onClick={() => move(a, 'down')} title="Descendre">▼</button>
+                                                <button className="btn btn-xs join-item" onClick={() => move(a, 'down')} title="Descendre" disabled={!canUpdate}>▼</button>
                                             </div>
                                         </td>
                                         <td><div className="font-mono font-medium">{a.code}</div></td>
@@ -626,12 +672,14 @@ export default function GarantiesPageClient() {
                                         </td>
                                         <td className="text-right">
                                             <div className="join justify-end">
-                                                <button className="btn btn-sm join-item" onClick={() => openEdit(a)}>
+                                                <button className="btn btn-sm join-item" onClick={() => openEdit(a)} disabled={!canUpdate}>
                                                     <SquarePen size={16} />
                                                 </button>
-                                                <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(a)}>
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                {canDelete && (
+                                                    <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(a)}>
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -673,7 +721,7 @@ export default function GarantiesPageClient() {
             <dialog ref={upsertDialogRef} className="modal">
                 <div className="modal-box w-11/12 max-w-4xl">
                     <h3 className="font-bold text-lg">{editing?.id ? 'Modifier une garantie' : 'Nouvelle garantie'}</h3>
-                    <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                    <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4" disabled={formDisabled}>
                         <form className="mt-4" onSubmit={submitUpsert}>
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
 
@@ -801,7 +849,7 @@ export default function GarantiesPageClient() {
                                             type="checkbox"
                                             className="toggle"
                                             checked={editingRisk === 'prevoyance' ? false : !!editing?.allow_surco}
-                                            disabled={editingRisk === 'prevoyance'}
+                                            disabled={editingRisk === 'prevoyance' || !canUpdate}
                                             onChange={(e) => setEditing((v) => ({ ...v, allow_surco: e.target.checked }))}
                                         />
                                     </label>
@@ -820,7 +868,7 @@ export default function GarantiesPageClient() {
                                 >
                                     Annuler
                                 </button>
-                                <button type="submit" className="btn btn-primary">Enregistrer</button>
+                                <button type="submit" className="btn btn-primary" disabled={formDisabled}>Enregistrer</button>
                             </div>
                         </form>
                     </fieldset>
@@ -846,7 +894,7 @@ export default function GarantiesPageClient() {
                     </div>
                     <div className="modal-action">
                         <button className="btn" onClick={cancelDelete}>Annuler</button>
-                        <button className="btn btn-error" onClick={confirmDelete}>Supprimer</button>
+                        <button className="btn btn-error" onClick={confirmDelete} disabled={!canDelete}>Supprimer</button>
                     </div>
                 </div>
                 <form method="dialog" className="modal-backdrop">

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRefValueTypes } from '@/providers/AppDataProvider';
 import { SquarePen, Trash2 } from 'lucide-react';
+import {usePermissions} from '@/providers/AuthProvider';
 
 /**
  * Page Next.js — Référentiel des "types de valeur"
@@ -41,6 +42,9 @@ export default function ValueTypePageClient() {
     const [candidateDelete, setCandidateDelete] = useState(null);  // type à supprimer
     const [editingFieldIdx, setEditingFieldIdx] = useState(null);  // index du champ en édition (ou null)
     const [fieldDraft, setFieldDraft] = useState(null);            // brouillon champ
+    const {canCreate, canUpdate, canDelete} = usePermissions();
+    const formDisabled = editingType ? (editingType.id ? !canUpdate : !canCreate) : false;
+    const allowWrite = canUpdate;
 
     useEffect(() => setMounted(true), []);
 
@@ -161,11 +165,19 @@ export default function ValueTypePageClient() {
 
     // ===== CRUD Types =====
     function openCreateType() {
+        if (!canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.');
+            return;
+        }
         setEditingType({ id: null, code: '', libelle: '', fields: [] });
         upsertDialogRef.current?.showModal();
     }
 
     function openEditType(t) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.');
+            return;
+        }
         setEditingType(JSON.parse(JSON.stringify(t)));
         upsertDialogRef.current?.showModal();
     }
@@ -173,6 +185,15 @@ export default function ValueTypePageClient() {
     function submitType(e) {
         e?.preventDefault?.();
         if (!editingType) return;
+        const creating = !editingType.id;
+        if (creating && !canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.');
+            return;
+        }
+        if (!creating && !canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.');
+            return;
+        }
 
         const code = String(editingType.code || '').trim();
         if (!code) return showToast('error', 'Le code est requis');
@@ -200,11 +221,19 @@ export default function ValueTypePageClient() {
     }
 
     function requestDeleteType(t) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.');
+            return;
+        }
         setCandidateDelete(t);
         deleteDialogRef.current?.showModal();
     }
     function confirmDeleteType() {
         if (!candidateDelete) return;
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.');
+            return;
+        }
         const next = (refValueTypes || []).filter(t => t.id !== candidateDelete.id);
         setRefValueTypes(sanitizeTypes(next));
         showToast('success', 'Type supprimé');
@@ -218,16 +247,28 @@ export default function ValueTypePageClient() {
 
     // ===== Fields management (dans le modal Type) =====
     function addField() {
+        if (!allowWrite) {
+            showToast('error', 'Modification non autorisée pour votre rôle.');
+            return;
+        }
         setEditingFieldIdx(null);
         setFieldDraft({ name: '', kind: 'text', required: false });
         fieldDialogRef.current?.showModal();
     }
     function editField(index) {
+        if (!allowWrite) {
+            showToast('error', 'Modification non autorisée pour votre rôle.');
+            return;
+        }
         setEditingFieldIdx(index);
         setFieldDraft(JSON.parse(JSON.stringify(editingType.fields[index])));
         fieldDialogRef.current?.showModal();
     }
     function removeField(index) {
+        if (!allowWrite) {
+            showToast('error', 'Modification non autorisée pour votre rôle.');
+            return;
+        }
         setEditingType((cur) => {
             const arr = [...(cur.fields || [])];
             arr.splice(index, 1);
@@ -235,6 +276,10 @@ export default function ValueTypePageClient() {
         });
     }
     function moveField(index, dir) {
+        if (!allowWrite) {
+            showToast('error', 'Modification non autorisée pour votre rôle.');
+            return;
+        }
         setEditingType((cur) => {
             const arr = [...(cur.fields || [])];
             const tgt = dir === 'up' ? index - 1 : index + 1;
@@ -248,6 +293,10 @@ export default function ValueTypePageClient() {
     function submitField(e) {
         e?.preventDefault?.();
         if (!fieldDraft || !editingType) return;
+        if (!allowWrite) {
+            showToast('error', 'Modification non autorisée pour votre rôle.');
+            return;
+        }
 
         // validation basique
         const name = String(fieldDraft.name || '').trim();
@@ -296,8 +345,18 @@ export default function ValueTypePageClient() {
         a.href = url; a.download = 'ref_value_types.json'; a.click();
         URL.revokeObjectURL(url);
     }
-    function triggerImport() { importInputRef.current?.click(); }
+    function triggerImport() {
+        if (!allowWrite) {
+            showToast('error', 'Import non autorisé pour votre rôle.');
+            return;
+        }
+        importInputRef.current?.click();
+    }
     function onImportFileChange(e) {
+        if (!allowWrite) {
+            showToast('error', 'Import non autorisé pour votre rôle.');
+            return;
+        }
         const file = e.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
@@ -333,6 +392,10 @@ export default function ValueTypePageClient() {
         return Array.from(map.values());
     }
     function resetAll() {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.');
+            return;
+        }
         if (!confirm('Supprimer tous les types de valeur stockés ?')) return;
         setRefValueTypes([]);
         showToast('info', 'Liste vidée');
@@ -354,13 +417,13 @@ export default function ValueTypePageClient() {
             <div className="flex items-center justify-between gap-2">
                 <h1 className="text-2xl font-bold">Référentiel — Types de valeur</h1>
                 <div className="flex gap-2">
-                    <button className="btn btn-primary" onClick={openCreateType}>+ Nouveau type</button>
+                    <button className="btn btn-primary" onClick={openCreateType} disabled={!canCreate}>+ Nouveau type</button>
                     <div className="join">
                         <button className="btn join-item" onClick={exportJSON}>Export JSON</button>
-                        <button className="btn join-item" onClick={triggerImport}>Import JSON</button>
+                        <button className="btn join-item" onClick={triggerImport} disabled={!allowWrite}>Import JSON</button>
                         <input ref={importInputRef} type="file" accept="application/json" className="hidden" onChange={onImportFileChange} />
                     </div>
-                    <button className="btn btn-ghost" onClick={resetAll}>Réinitialiser</button>
+                    <button className="btn btn-ghost" onClick={resetAll} disabled={!canDelete}>Réinitialiser</button>
                 </div>
             </div>
 
@@ -420,8 +483,10 @@ export default function ValueTypePageClient() {
                                     </td>
                                     <td className="text-right">
                                         <div className="join justify-end">
-                                            <button className="btn btn-sm join-item" onClick={() => openEditType(t)}><SquarePen size={16} /></button>
-                                            <button className="btn btn-sm btn-error join-item" onClick={() => requestDeleteType(t)}><Trash2 size={16} /></button>
+                                            <button className="btn btn-sm join-item" onClick={() => openEditType(t)} disabled={!canUpdate}><SquarePen size={16} /></button>
+                                            {canDelete && (
+                                                <button className="btn btn-sm btn-error join-item" onClick={() => requestDeleteType(t)}><Trash2 size={16} /></button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -465,6 +530,7 @@ export default function ValueTypePageClient() {
                 <div className="modal-box w-11/12 max-w-5xl">
                     <h3 className="font-bold text-lg">{editingType?.id ? 'Modifier un type' : 'Nouveau type'}</h3>
                     <form className="mt-4" onSubmit={submitType}>
+                        <fieldset disabled={formDisabled} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                             <label className="floating-label md:col-span-4">
                                 <span>Code <span className="text-error">*</span></span>
@@ -493,7 +559,7 @@ export default function ValueTypePageClient() {
                         <div className="mt-6">
                             <div className="flex items-center justify-between mb-2">
                                 <h4 className="font-semibold">Champs</h4>
-                                <button type="button" className="btn btn-sm btn-primary" onClick={addField}>+ Ajouter un champ</button>
+                                <button type="button" className="btn btn-sm btn-primary" onClick={addField} disabled={!allowWrite}>+ Ajouter un champ</button>
                             </div>
 
                             <div className="overflow-x-auto">
@@ -516,9 +582,9 @@ export default function ValueTypePageClient() {
                                         <tr key={idx}>
                                             <td>
                                                 <div className="join">
-                                                    <button type="button" className="btn btn-xs join-item" onClick={() => moveField(idx, 'up')}>▲</button>
+                                                    <button type="button" className="btn btn-xs join-item" onClick={() => moveField(idx, 'up')} disabled={!allowWrite}>▲</button>
                                                     <span className="btn btn-xs join-item btn-ghost">{idx + 1}</span>
-                                                    <button type="button" className="btn btn-xs join-item" onClick={() => moveField(idx, 'down')}>▼</button>
+                                                    <button type="button" className="btn btn-xs join-item" onClick={() => moveField(idx, 'down')} disabled={!allowWrite}>▼</button>
                                                 </div>
                                             </td>
                                             <td><span className="font-mono">{f.name}</span></td>
@@ -543,8 +609,10 @@ export default function ValueTypePageClient() {
                                             </td>
                                             <td className="text-right">
                                                 <div className="join justify-end">
-                                                    <button type="button" className="btn btn-sm join-item" onClick={() => editField(idx)}><SquarePen size={16} /></button>
-                                                    <button type="button" className="btn btn-sm btn-error join-item" onClick={() => removeField(idx)}><Trash2 size={16} /></button>
+                                                    <button type="button" className="btn btn-sm join-item" onClick={() => editField(idx)} disabled={!allowWrite}><SquarePen size={16} /></button>
+                                                    {allowWrite && (
+                                                        <button type="button" className="btn btn-sm btn-error join-item" onClick={() => removeField(idx)}><Trash2 size={16} /></button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -557,10 +625,11 @@ export default function ValueTypePageClient() {
                                 <span>Les noms de champs doivent être uniques dans un type. Le type <span className="font-mono">enum</span> nécessite au moins une option.</span>
                             </div>
                         </div>
+                        </fieldset>
 
                         <div className="modal-action mt-4">
                             <button type="button" className="btn btn-ghost" onClick={() => { upsertDialogRef.current?.close(); setEditingType(null); }}>Annuler</button>
-                            <button type="submit" className="btn btn-primary">Enregistrer</button>
+                            <button type="submit" className="btn btn-primary" disabled={formDisabled}>Enregistrer</button>
                         </div>
                     </form>
                 </div>
@@ -585,7 +654,7 @@ export default function ValueTypePageClient() {
                     </div>
                     <div className="modal-action">
                         <button className="btn" onClick={cancelDeleteType}>Annuler</button>
-                        <button className="btn btn-error" onClick={confirmDeleteType}>Supprimer</button>
+                        <button className="btn btn-error" onClick={confirmDeleteType} disabled={!canDelete}>Supprimer</button>
                     </div>
                 </div>
                 <form method="dialog" className="modal-backdrop">
@@ -599,6 +668,7 @@ export default function ValueTypePageClient() {
                     <h3 className="font-bold text-lg">{editingFieldIdx == null ? 'Ajouter un champ' : 'Modifier le champ'}</h3>
 
                     <form className="mt-4 space-y-4" onSubmit={submitField}>
+                        <fieldset disabled={!allowWrite} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                             <label className="floating-label md:col-span-6">
                                 <span>Nom du champ <span className="text-error">*</span></span>
@@ -788,6 +858,11 @@ export default function ValueTypePageClient() {
                         <div className="modal-action mt-4">
                             <button type="button" className="btn btn-ghost" onClick={cancelField}>Annuler</button>
                             <button type="submit" className="btn btn-primary">OK</button>
+                        </div>
+                        </fieldset>
+                        <div className="modal-action">
+                            <button type="button" className="btn" onClick={cancelField}>Annuler</button>
+                            <button type="submit" className="btn btn-primary" disabled={!allowWrite}>Enregistrer</button>
                         </div>
                     </form>
                 </div>

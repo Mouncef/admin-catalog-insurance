@@ -1,10 +1,8 @@
 import {Geist, Geist_Mono} from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/layout/Navbar";
-import Breadcrumbs from "@/components/layout/Breadcrumbs";
-import Footer from "@/components/layout/Footer";
-import Sidebar from "@/components/layout/Sidebar";
 import {AppDataProvider} from "@/providers/AppDataProvider";
+import {AuthProvider} from "@/providers/AuthProvider";
+import AppShell from "@/components/layout/AppShell";
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -22,8 +20,6 @@ export const metadata = {
 };
 
 export default function RootLayout({children}) {
-    const drawerId = "my-drawer-2";
-
     return (
         <html lang="fr" data-theme="winter" suppressHydrationWarning>
             <head>
@@ -40,24 +36,13 @@ export default function RootLayout({children}) {
                 />
             </head>
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-svh`}>
-                <AppDataProvider>
-                    <div className="drawer lg:drawer-open min-h-svh">
-                        <div className="drawer-content flex flex-col min-h-svh">
-                            <Navbar drawerId={drawerId} />
-
-                            {/* <- important */}
-                            <main className="flex-1 p-4 md:p-6 lg:p-8">
-                                <div className="mx-auto space-y-4">
-                                    <Breadcrumbs />
-                                    {children}
-                                </div>
-                            </main>
-
-                            <Footer />  {/* pas de fixed ici */}
-                        </div>
-                        <Sidebar drawerId={drawerId} />
-                    </div>
-                </AppDataProvider>
+                <AuthProvider>
+                    <AppDataProvider>
+                        <AppShell>
+                            {children}
+                        </AppShell>
+                    </AppDataProvider>
+                </AuthProvider>
             </body>
         </html>
     );

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRefNiveau, useRefNiveauSets } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep, normalizeRisk } from '@/lib/utils/StringUtil'
 import { SquarePen, Trash2 } from "lucide-react";
+import {usePermissions} from '@/providers/AuthProvider';
 
 const RISK_OPTIONS = [
     { value: 'sante', label: 'Santé' },
@@ -43,6 +44,8 @@ export default function NiveauxPageClient() {
 
     const [editing, setEditing] = useState(null)
     const [candidateDelete, setCandidateDelete] = useState(null)
+    const {canCreate, canUpdate, canDelete} = usePermissions();
+    const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -215,12 +218,20 @@ export default function NiveauxPageClient() {
     }
 
     function requestDelete(row) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         setCandidateDelete(row)
         deleteDialogRef.current?.showModal()
     }
 
     function confirmDelete() {
         if (!candidateDelete) return
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         setRefNiveau(sanitizeLevels(refNiveau.filter((n) => n.id !== candidateDelete.id)))
         showToast('success', 'Niveau supprimé')
         deleteDialogRef.current?.close()
@@ -255,6 +266,10 @@ export default function NiveauxPageClient() {
     }*/
 
     function toggleEnabled(row) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const next = refNiveau.map((n) => (n.id === row.id ? { ...n, is_enabled: !n.is_enabled } : n))
         setRefNiveau(sanitizeLevels(next))
     }
@@ -271,9 +286,19 @@ export default function NiveauxPageClient() {
         URL.revokeObjectURL(url)
     }
 
-    function triggerImport() { importInputRef.current?.click() }
+    function triggerImport() {
+        if (!canUpdate) {
+            showToast('error', 'Import non autorisé pour votre rôle.')
+            return
+        }
+        importInputRef.current?.click()
+    }
 
     function onImportFileChange(e) {
+        if (!canUpdate) {
+            showToast('error', 'Import non autorisé pour votre rôle.')
+            return
+        }
         const file = e.target.files?.[0]
         if (!file) return
         const reader = new FileReader()
@@ -323,6 +348,10 @@ export default function NiveauxPageClient() {
     }
 
     function resetAll() {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         if (!confirm('Supprimer tous les niveaux du référentiel ?')) return
         setRefNiveau([])
         showToast('info', 'Référentiel vidé')
@@ -358,13 +387,13 @@ export default function NiveauxPageClient() {
             <div className="flex items-center justify-between gap-2">
                 <h1 className="text-2xl font-bold">Référentiel — Niveaux</h1>
                 <div className="flex gap-2">
-                    <button className="btn btn-primary" onClick={openCreate}>+ Nouveau niveau</button>
+                    <button className="btn btn-primary" onClick={openCreate} disabled={!canCreate}>+ Nouveau niveau</button>
                     <div className="join">
                         <button className="btn join-item" onClick={exportJSON}>Export JSON</button>
-                        <button className="btn join-item" onClick={triggerImport}>Import JSON</button>
+                        <button className="btn join-item" onClick={triggerImport} disabled={!canUpdate}>Import JSON</button>
                         <input ref={importInputRef} type="file" accept="application/json" className="hidden" onChange={onImportFileChange} />
                     </div>
-                    <button className="btn btn-ghost" onClick={resetAll}>Réinitialiser</button>
+                    <button className="btn btn-ghost" onClick={resetAll} disabled={!canDelete}>Réinitialiser</button>
                 </div>
             </div>
 
@@ -452,9 +481,9 @@ export default function NiveauxPageClient() {
                                 <tr key={n.id}>
                                     <td>
                                         <div className="join">
-                                            <button className="btn btn-xs join-item" onClick={() => move(n, 'up')} title="Monter">▲</button>
+                                            <button className="btn btn-xs join-item" onClick={() => move(n, 'up')} title="Monter" disabled={!canUpdate}>▲</button>
                                             <span className="join-item btn btn-xs btn-ghost">{n.ordre}</span>
-                                            <button className="btn btn-xs join-item" onClick={() => move(n, 'down')} title="Descendre">▼</button>
+                                            <button className="btn btn-xs join-item" onClick={() => move(n, 'down')} title="Descendre" disabled={!canUpdate}>▼</button>
                                         </div>
                                     </td>
                                     <td><div className="font-mono font-medium truncate" title={setLabel}>{setLabel}</div></td>
@@ -468,17 +497,19 @@ export default function NiveauxPageClient() {
                                     <td>
                                         <label className="label cursor-pointer gap-2 justify-start">
                                             <span className="label-text">{n.is_enabled ? 'Activé' : 'Désactivé'}</span>
-                                            <input type="checkbox" className="toggle" checked={!!n.is_enabled} onChange={() => toggleEnabled(n)} />
+                                            <input type="checkbox" className="toggle" checked={!!n.is_enabled} onChange={() => toggleEnabled(n)} disabled={!canUpdate}/>
                                         </label>
                                     </td>
                                     <td className="text-right">
                                         <div className="join justify-end">
-                                            <button className="btn btn-sm join-item" onClick={() => openEdit(n)}>
+                                            <button className="btn btn-sm join-item" onClick={() => openEdit(n)} disabled={!canUpdate}>
                                                 <SquarePen size={16} />
                                             </button>
-                                            <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(n)}>
-                                                <Trash2 size={16} />
-                                            </button>
+                                            {canDelete && (
+                                                <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(n)}>
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -521,7 +552,7 @@ export default function NiveauxPageClient() {
             <dialog ref={upsertDialogRef} className="modal">
                 <div className="modal-box w-11/12 max-w-3xl">
                     <h3 className="font-bold text-lg">{editing?.id ? 'Modifier un niveau' : 'Nouveau niveau'}</h3>
-                    <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                    <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4" disabled={formDisabled}>
                         <form className="mt-4 space-y-4" onSubmit={submitUpsert}>
                             <label className="floating-label block w-full">
                                 <span>Ordre</span>
@@ -611,13 +642,14 @@ export default function NiveauxPageClient() {
                                         className="toggle"
                                         checked={!!editing?.is_enabled}
                                         onChange={(e) => setEditing((v) => ({ ...v, is_enabled: e.target.checked }))}
+                                        disabled={!canUpdate}
                                     />
                                 </label>
                             </div>
 
                             <div className="modal-action mt-6">
                                 <button type="button" className="btn btn-ghost" onClick={() => { upsertDialogRef.current?.close(); setEditing(null) }}>Annuler</button>
-                                <button type="submit" className="btn btn-primary">Enregistrer</button>
+                                <button type="submit" className="btn btn-primary" disabled={formDisabled}>Enregistrer</button>
                             </div>
                         </form>
                     </fieldset>
@@ -643,7 +675,7 @@ export default function NiveauxPageClient() {
                     </div>
                     <div className="modal-action">
                         <button className="btn" onClick={cancelDelete}>Annuler</button>
-                        <button className="btn btn-error" onClick={confirmDelete}>Supprimer</button>
+                        <button className="btn btn-error" onClick={confirmDelete} disabled={!canDelete}>Supprimer</button>
                     </div>
                 </div>
                 <form method="dialog" className="modal-backdrop">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRefOffers } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep } from '@/lib/utils/StringUtil'
 import { SquarePen, Trash2 } from "lucide-react";
+import {usePermissions} from '@/providers/AuthProvider';
 
 /**
  * Page Next.js (JSX) — Administration des OFFRES
@@ -32,6 +33,8 @@ export default function OffresPageClient() {
 
     const [editing, setEditing] = useState(null) // offre en édition
     const [candidateDelete, setCandidateDelete] = useState(null)
+    const {canCreate, canUpdate, canDelete} = usePermissions();
+    const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -70,11 +73,19 @@ export default function OffresPageClient() {
 
     // ===== CRUD =====
     function openCreate() {
+        if (!canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
         setEditing({ id: null, code: '', libelle: '' })
         upsertDialogRef.current?.showModal()
     }
 
     function openEdit(offre) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         setEditing({ ...offre })
         upsertDialogRef.current?.showModal()
     }
@@ -82,6 +93,15 @@ export default function OffresPageClient() {
     function submitUpsert(e) {
         e?.preventDefault?.()
         if (!editing) return
+        const creating = !editing.id
+        if (creating && !canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
+        if (!creating && !canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
 
         const code = (editing.code || '').trim()
         if (!code) return showToast('error', 'Le code est requis')
@@ -108,12 +128,20 @@ export default function OffresPageClient() {
     }
 
     function requestDelete(offre) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         setCandidateDelete(offre)
         deleteDialogRef.current?.showModal()
     }
 
     function confirmDelete() {
         if (!candidateDelete) return
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         setRefOffers(refOffers.filter((o) => o.id !== candidateDelete.id))
         showToast('success', 'Offre supprimée')
         deleteDialogRef.current?.close()
@@ -141,7 +169,7 @@ export default function OffresPageClient() {
             <div className="flex items-center justify-between gap-2">
                 <h1 className="text-2xl font-bold">Administration — Offres</h1>
                 <div className="flex gap-2">
-                    <button className="btn btn-primary" onClick={openCreate}>+ Nouvelle offre</button>
+                    <button className="btn btn-primary" onClick={openCreate} disabled={!canCreate}>+ Nouvelle offre</button>
                     <div className="join">
                         {/* Export/Import optionnels */}
                     </div>
@@ -191,12 +219,14 @@ export default function OffresPageClient() {
                                     <td className="max-w-[620px]"><div className="truncate" title={o.libelle}>{o.libelle || <span className="opacity-50">—</span>}</div></td>
                                     <td className="text-right">
                                         <div className="join justify-end">
-                                            <button className="btn btn-sm join-item" onClick={() => openEdit(o)}>
+                                            <button className="btn btn-sm join-item" onClick={() => openEdit(o)} disabled={!canUpdate}>
                                                 <SquarePen size={16} />
                                             </button>
-                                            <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(o)}>
-                                                <Trash2 size={16} />
-                                            </button>
+                                            {canDelete && (
+                                                <button className="btn btn-sm btn-error join-item" onClick={() => requestDelete(o)}>
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -239,7 +269,7 @@ export default function OffresPageClient() {
             <dialog ref={upsertDialogRef} className="modal">
                 <div className="modal-box w-11/12 max-w-2xl">
                     <h3 className="font-bold text-lg">{editing?.id ? 'Modifier une offre' : 'Nouvelle offre'}</h3>
-                    <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                    <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4" disabled={formDisabled}>
                         <form className="mt-4" onSubmit={submitUpsert}>
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                                 <label className="floating-label md:col-span-8">
@@ -292,7 +322,7 @@ export default function OffresPageClient() {
                     </div>
                     <div className="modal-action">
                         <button className="btn" onClick={cancelDelete}>Annuler</button>
-                        <button className="btn btn-error" onClick={confirmDelete}>Supprimer</button>
+                        <button className="btn btn-error" onClick={confirmDelete} disabled={!canDelete}>Supprimer</button>
                     </div>
                 </div>
                 <form method="dialog" className="modal-backdrop">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRefModules } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep, normalizeRisk } from "@/lib/utils/StringUtil"
 import { SquarePen, Trash2 } from "lucide-react"
+import {usePermissions} from '@/providers/AuthProvider';
 
 const RISK_OPTIONS = [
     { value: 'sante', label: 'Santé' },
@@ -31,6 +32,8 @@ export default function ModulesPageClient() {
 
     const [editing, setEditing] = useState(null) // module en édition
     const [candidateDelete, setCandidateDelete] = useState(null)
+    const {canCreate, canUpdate, canDelete} = usePermissions();
+    const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -94,6 +97,15 @@ export default function ModulesPageClient() {
     function submitUpsert(e) {
         e?.preventDefault?.()
         if (!editing) return
+        const creating = !editing.id
+        if (creating && !canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
+        if (!creating && !canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
 
         const code = (editing.code || '').trim()
         if (!code) return showToast('error', 'Le code est requis')
@@ -127,12 +139,20 @@ export default function ModulesPageClient() {
     }
 
     function requestDelete(mod) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         setCandidateDelete(mod)
         deleteDialogRef.current?.showModal()
     }
 
     function confirmDelete() {
         if (!candidateDelete) return
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         const next = sanitizeModules(modules.filter((m) => m.id !== candidateDelete.id))
         setRefModules(next)
         showToast('success', 'Module supprimé')
@@ -204,6 +224,10 @@ export default function ModulesPageClient() {
     }
 
     function resetAll() {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         if (!confirm('Supprimer tous les modules stockés ?')) return
         setRefModules([])
         showToast('info', 'Liste vidée')
@@ -229,11 +253,16 @@ export default function ModulesPageClient() {
                     {/* <button className="btn btn-outline" onClick={exportJSON}>Exporter JSON</button>
           <input ref={importInputRef} type="file" accept="application/json" className="hidden" onChange={onImportFileChange}/>
           <button className="btn btn-outline" onClick={triggerImport}>Importer JSON</button> */}
-                    <button className="btn btn-error btn-outline" onClick={resetAll}>Vider</button>
+                    <button className="btn btn-error btn-outline" onClick={resetAll} disabled={!canDelete}>Vider</button>
                     <button
                         className="btn btn-primary"
+                        disabled={!canCreate}
                         onClick={() => {
                             const riskDefault = riskFilter !== 'all' ? riskFilter : 'sante'
+                            if (!canCreate) {
+                                showToast('error', 'Création non autorisée pour votre rôle.')
+                                return
+                            }
                             setEditing({ id: null, code: '', libelle: '', risque: riskDefault })
                             upsertDialogRef.current?.showModal()
                         }}
@@ -303,12 +332,14 @@ export default function ModulesPageClient() {
                                 </span>
                             </td>
                             <td className="flex gap-2">
-                                <button className="btn btn-xs btn-outline" onClick={() => { setEditing({ ...m, risque: normalizeRisk(m.risque) }); upsertDialogRef.current?.showModal() }}>
+                                <button className="btn btn-xs btn-outline" onClick={() => { if (!canUpdate) { showToast('error', 'Modification non autorisée pour votre rôle.'); return; } setEditing({ ...m, risque: normalizeRisk(m.risque) }); upsertDialogRef.current?.showModal() }} disabled={!canUpdate}>
                                     <SquarePen size={16} />
                                 </button>
-                                <button className="btn btn-xs btn-error btn-outline" onClick={() => requestDelete(m)}>
-                                    <Trash2 size={16} />
-                                </button>
+                                {canDelete && (
+                                    <button className="btn btn-xs btn-error btn-outline" onClick={() => requestDelete(m)}>
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
                             </td>
                         </tr>
                     ))}
@@ -352,7 +383,7 @@ export default function ModulesPageClient() {
                     <h3 className="font-bold text-lg">
                         {editing?.id ? 'Modifier un module' : 'Nouveau module'}
                     </h3>
-                    <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                    <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4" disabled={formDisabled}>
                         <form className="mt-4 space-y-4" onSubmit={submitUpsert}>
 
                             <label className="floating-label block w-full">
@@ -423,7 +454,7 @@ export default function ModulesPageClient() {
                     </div>
                     <div className="modal-action">
                         <button className="btn" onClick={cancelDelete}>Annuler</button>
-                        <button className="btn btn-error" onClick={confirmDelete}>Supprimer</button>
+                        <button className="btn btn-error" onClick={confirmDelete} disabled={!canDelete}>Supprimer</button>
                     </div>
                 </div>
                 <form method="dialog" className="modal-backdrop">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { SquarePen, Trash2 } from "lucide-react";
 import { useRefTranchesAges } from '@/providers/AppDataProvider'
 import { sanitizeUpperKeep } from '@/lib/utils/StringUtil'
+import {usePermissions} from '@/providers/AuthProvider';
 
 export default function TranchesAgesPageClient() {
     const { refTranchesAges, setRefTranchesAges } = useRefTranchesAges()
@@ -20,6 +21,8 @@ export default function TranchesAgesPageClient() {
 
     const [editing, setEditing] = useState(null)
     const [candidateDelete, setCandidateDelete] = useState(null)
+    const {canCreate, canUpdate, canDelete} = usePermissions();
+    const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -72,13 +75,32 @@ export default function TranchesAgesPageClient() {
     useEffect(() => { if (page > totalPages) setPage(totalPages) }, [totalPages, page])
 
     function openCreate() {
+        if (!canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
         setEditing({ id: null, code: '', libelle: '', ordre: nextOrdre(), is_enabled: true })
         upsertDialogRef.current?.showModal()
     }
-    function openEdit(item) { setEditing({ ...item }); upsertDialogRef.current?.showModal() }
+    function openEdit(item) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
+        setEditing({ ...item }); upsertDialogRef.current?.showModal()
+    }
     function submitUpsert(e) {
         e?.preventDefault?.()
         if (!editing) return
+        const creating = !editing.id
+        if (creating && !canCreate) {
+            showToast('error', 'Création non autorisée pour votre rôle.')
+            return
+        }
+        if (!creating && !canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const code = (editing.code || '').trim()
         if (!code) return showToast('error', 'Code requis')
         const exists = refTranchesAges.find(x => x.code.toLowerCase() === code.toLowerCase() && x.id !== editing.id)
@@ -102,9 +124,19 @@ export default function TranchesAgesPageClient() {
         }
         upsertDialogRef.current?.close(); setEditing(null)
     }
-    function requestDelete(item) { setCandidateDelete(item); deleteDialogRef.current?.showModal() }
+    function requestDelete(item) {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
+        setCandidateDelete(item); deleteDialogRef.current?.showModal()
+    }
     function confirmDelete() {
         if (!candidateDelete) return
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         const next = (refTranchesAges || []).filter(x => x.id !== candidateDelete.id)
         setRefTranchesAges(sanitizeList(next))
         showToast('success', 'Tranche supprimée')
@@ -112,6 +144,10 @@ export default function TranchesAgesPageClient() {
     }
     function cancelDelete() { deleteDialogRef.current?.close(); setCandidateDelete(null) }
     function move(item, dir) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const ids = [...refTranchesAges].sort((a, b) => a.ordre - b.ordre).map(x => x.id)
         const i = ids.indexOf(item.id); const j = dir === 'up' ? i - 1 : i + 1
         if (i < 0 || j < 0 || j >= ids.length) return
@@ -121,10 +157,18 @@ export default function TranchesAgesPageClient() {
         setRefTranchesAges(sanitizeList(next))
     }
     function toggleEnabled(item) {
+        if (!canUpdate) {
+            showToast('error', 'Modification non autorisée pour votre rôle.')
+            return
+        }
         const next = (refTranchesAges || []).map(x => x.id === item.id ? { ...x, is_enabled: !x.is_enabled } : x)
         setRefTranchesAges(next)
     }
     function resetAll() {
+        if (!canDelete) {
+            showToast('error', 'Suppression non autorisée pour votre rôle.')
+            return
+        }
         if (!confirm('Vider toutes les tranches d’âges ?')) return
         setRefTranchesAges([]); showToast('info', 'Liste vidée')
     }
@@ -144,8 +188,8 @@ export default function TranchesAgesPageClient() {
             <div className="flex items-center justify-between gap-2">
                 <h1 className="text-2xl font-bold">Référentiel — Tranches d’âges</h1>
                 <div className="flex gap-2">
-                    <button className="btn btn-primary" onClick={openCreate}>+ Nouvelle tranche</button>
-                    <button className="btn btn-ghost" onClick={resetAll}>Réinitialiser</button>
+                    <button className="btn btn-primary" onClick={openCreate} disabled={!canCreate}>+ Nouvelle tranche</button>
+                    <button className="btn btn-ghost" onClick={resetAll} disabled={!canDelete}>Réinitialiser</button>
                 </div>
             </div>
 
@@ -186,14 +230,14 @@ export default function TranchesAgesPageClient() {
                                 <tr key={it.id}>
                                     <td>
                                         <div className="join">
-                                            <button className="btn btn-xs join-item" onClick={() => move(it, 'up')}>▲</button>
+                                            <button className="btn btn-xs join-item" onClick={() => move(it, 'up')} disabled={!canUpdate}>▲</button>
                                             <span className="join-item btn btn-xs btn-ghost">{it.ordre}</span>
-                                            <button className="btn btn-xs join-item" onClick={() => move(it, 'down')}>▼</button>
+                                            <button className="btn btn-xs join-item" onClick={() => move(it, 'down')} disabled={!canUpdate}>▼</button>
                                         </div>
                                     </td>
                                     <td><div className="font-mono font-medium">{it.code}</div></td>
                                     <td className="max-w-[520px]"><div className="truncate" title={it.libelle}>{it.libelle || <span className="opacity-50">—</span>}</div></td>
-                                    <td><input type="checkbox" className="toggle" checked={!!it.is_enabled} onChange={() => toggleEnabled(it)} /></td>
+                                    <td><input type="checkbox" className="toggle" checked={!!it.is_enabled} onChange={() => toggleEnabled(it)} disabled={!canUpdate} /></td>
                                     <td className="text-right">
                                         <div className="join justify-end">
                                             <button className="btn btn-sm join-item" onClick={() => openEdit(it)}><SquarePen size={16} /></button>

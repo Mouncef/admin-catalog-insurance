@@ -85,6 +85,7 @@ function ViewerModulePanel({
                                groupes,
                                allowSurco = true,
                                optionDepth = 0,
+                               showSelectionTypeIndicators = false,
                            }) {
     const moduleRisk = normalizeRisk(module?.risque);
     // Tous les niveaux actifs
@@ -166,11 +167,11 @@ function ViewerModulePanel({
                             if (val === 'checkbox' || val === 'radio') selectionTypes.add(val);
                         });
                     }
-                    const badgeLabel = selectionTypes.size > 1
-                        ? 'Mixte (catégorie)'
-                        : selectionTypes.has('checkbox')
-                            ? 'CheckBox'
-                            : 'Bouton radio';
+                    // const badgeLabel = selectionTypes.size > 1
+                    //     ? 'Mixte (catégorie)'
+                    //     : selectionTypes.has('checkbox')
+                    //         ? 'CheckBox'
+                    //         : 'Bouton radio';
                     return (
                         <div key={g.id} className="card bg-base-200/40 shadow-sm mb-4">
                             <div className="card-body p-4">
@@ -179,11 +180,11 @@ function ViewerModulePanel({
                                         <div className="text-base sm:text-lg font-semibold">
                                             Groupe : {g.nom}
                                         </div>
-                                        {moduleRisk === 'prevoyance' && (
+                                        {/*{moduleRisk === 'prevoyance' && (
                                             <span className="badge badge-outline">
                                                 {badgeLabel}
                                             </span>
-                                        )}
+                                        )}*/}
                                     </div>
                                 </div>
 
@@ -204,6 +205,7 @@ function ViewerModulePanel({
                                     categoryGroups={categoryGroups}
                                     membres={membres}
                                     gvaleurs={gvaleurs}
+                                    showSelectionTypeIndicators={showSelectionTypeIndicators}
                                 />
                             </div>
                         </div>
@@ -591,6 +593,7 @@ function VisualiserPageBase({catalogueId, targetRisk = null}) {
                                                         groupes={groupes}
                                                         allowSurco={normalizeRisk(m?.risque) !== 'prevoyance'}
                                                         optionsEnabled={moduleOptionsEnabled}
+                                                        showSelectionTypeIndicators={normalizeRisk(m?.risque) === 'prevoyance'}
                                                     />
                                                </div>
                                             </Fragment>
@@ -621,6 +624,7 @@ function VisualiserPageBase({catalogueId, targetRisk = null}) {
                                             groupes={groupes}
                                             allowSurco={normalizeRisk(m?.risque) !== 'prevoyance'}
                                             optionsEnabled={normalizeRisk(m?.risque) === 'sante' && (getOptionDepthForModule(m.id) || 0) > 0}
+                                            showSelectionTypeIndicators={normalizeRisk(m?.risque) === 'prevoyance'}
                                         />
                                     )
                                 })()}

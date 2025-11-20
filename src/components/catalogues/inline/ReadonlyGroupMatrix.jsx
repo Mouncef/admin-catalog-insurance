@@ -1,6 +1,6 @@
 'use client';
 
-import {Fragment, useEffect, useMemo, useState} from 'react';
+import {Fragment, useCallback, useEffect, useMemo, useState} from 'react';
 import ValueEditorTyped from '@/components/catalogues/inline/ValueEditorTyped';
 import {coerceCellValue} from '@/lib/utils/CatalogueInline';
 import {isUngroupedCategoryId} from "@/lib/utils/categoryUtils";
@@ -122,6 +122,7 @@ export default function ReadonlyGroupMatrix({
                                                 onEditCategoryLabel,
                                                 onDeleteCategoryLabel,
                                                 onOpenTypeModal,
+                                                showSelectionTypeIndicators = false,
                                             }) {
     const moduleRisk = normalizeRisk(module?.risque);
     const isPlainObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
@@ -134,6 +135,14 @@ export default function ReadonlyGroupMatrix({
             }
         }
         return group?.selection_type === 'checkbox' ? 'checkbox' : 'radio';
+    };
+    const isUngroupedCategory = (category) => {
+        if (!category) return false;
+        if (isUngroupedCategoryId(category.id)) return true;
+        const code = String(category.code || '').trim().toUpperCase();
+        if (code === 'SANS_GROUPE') return true;
+        const label = String(category.libelle || '').trim().toLowerCase();
+        return label === 'sans groupe';
     };
     const sortLevels = (list = []) =>
         list
@@ -374,6 +383,97 @@ export default function ReadonlyGroupMatrix({
         () => (combinedLevels || []).map((lvl) => ({value: lvl.id, label: safeLevelLabel(lvl)})),
         [combinedLevels]
     );
+    const shouldShowCategoryTypeIndicators = showSelectionTypeIndicators && moduleRisk === 'prevoyance';
+    const vizRadioGroupName = useMemo(
+        () => `viz-prevoyance-${group?.id || 'group'}`,
+        [group?.id]
+    );
+    const buildInitialCatSelection = useCallback(() => {
+        const initial = {};
+        (catsBase || []).forEach((cat) => {
+            initial[cat.id] = false;
+        });
+        return initial;
+    }, [catsBase]);
+    const [catSelectionState, setCatSelectionState] = useState(() => buildInitialCatSelection());
+    useEffect(() => {
+        setCatSelectionState(buildInitialCatSelection());
+    }, [buildInitialCatSelection, group?.id]);
+    const selectionTypeByCategory = useMemo(() => {
+        const map = new Map();
+        (catsBase || []).forEach((cat) => {
+            map.set(cat.id, selectionTypeForCategory(cat.id));
+        });
+        return map;
+    }, [catsBase, group?.category_selection_types, group?.selection_type, moduleRisk]);
+    const categoryHasActControls = (cat, selectionType) => {
+        if (isUngroupedCategory(cat)) return true;
+        return selectionType === 'checkbox';
+    };
+    const buildInitialActSelection = useCallback(() => {
+        const initial = {};
+        if (!Array.isArray(catsBase)) return initial;
+        for (const cat of catsBase) {
+            const selectionType = selectionTypeByCategory.get(cat.id);
+            if (!categoryHasActControls(cat, selectionType)) continue;
+            const acts = (actsByCategory.get(cat.id) || []).filter((act) => membersSet.has(act.id));
+            initial[cat.id] = {};
+            acts.forEach((act) => {
+                initial[cat.id][act.id] = false;
+            });
+        }
+        return initial;
+    }, [catsBase, selectionTypeByCategory, actsByCategory, membersSet]);
+    const [actSelectionState, setActSelectionState] = useState(() => buildInitialActSelection());
+    useEffect(() => {
+        setActSelectionState((prev) => {
+            const skeleton = buildInitialActSelection();
+            const next = {};
+            for (const [catId, actMap] of Object.entries(skeleton)) {
+                next[catId] = {};
+                for (const actId of Object.keys(actMap)) {
+                    next[catId][actId] = prev?.[catId]?.[actId] || false;
+                }
+            }
+            return next;
+        });
+    }, [buildInitialActSelection]);
+    const toggleCategorySelection = useCallback((catId, explicitType = null) => {
+        if (!catId) return;
+        const type = explicitType || selectionTypeByCategory.get(catId) || 'radio';
+        setCatSelectionState((prev) => {
+            const next = {...(prev || {})};
+            if (type === 'radio') {
+                for (const [key, catType] of selectionTypeByCategory.entries()) {
+                    if (catType === 'radio') {
+                        next[key] = key === catId;
+                    }
+                }
+            } else {
+                next[catId] = !next[catId];
+            }
+            return next;
+        });
+    }, [selectionTypeByCategory]);
+    const toggleActSelection = useCallback((catId, actId, explicitType = null) => {
+        if (!catId || !actId) return;
+        const type = explicitType || selectionTypeByCategory.get(catId) || 'radio';
+        setActSelectionState((prev) => {
+            const next = {...(prev || {})};
+            const currentCat = next[catId] ? {...next[catId]} : {};
+            if (type === 'radio') {
+                const keys = Object.keys(currentCat);
+                if (keys.length === 0) currentCat[actId] = true;
+                else keys.forEach((key) => {
+                    currentCat[key] = key === actId;
+                });
+            } else {
+                currentCat[actId] = !currentCat[actId];
+            }
+            next[catId] = currentCat;
+            return next;
+        });
+    }, [selectionTypeByCategory]);
 
     const baseHeaderItems = baseLevels.length ? baseLevels : combinedLevels;
     const surcoHeaderItems = useSeparateColumns
@@ -711,18 +811,36 @@ export default function ReadonlyGroupMatrix({
                             labelBuckets.flatMap((bucket) => bucket.acts.map((act) => act.id))
                         );
                         const freeActs = acts.filter((act) => !labeledSet.has(act.id));
+                        const selectionType = selectionTypeForCategory(cat.id);
+                        const hasActControls = categoryHasActControls(cat, selectionType);
+                        const catActSelectionMap = actSelectionState?.[cat.id] || {};
 
                         const renderActRow = (act, options = {}) => {
                             const subRows = subItemsMap?.get(act.id) || [];
                             const indent = options.indent ? 'pl-12' : '';
+                            const showActSelectionIndicator =
+                                shouldShowCategoryTypeIndicators && hasActControls;
+                            const actSelectionChecked = showActSelectionIndicator ? !!catActSelectionMap[act.id] : false;
                             return (
                                 <Fragment key={`${act.id}-${indent || 'root'}`}>
                                     <tr>
-                                        <td className={`table-pin-cols ${group?.nom === 'Sans groupe' ? 'py-1' : ''} ${indent}`}>
+                                        <td className={`table-pin-cols ${isVirtualUngroupedCategory ? 'py-1' : ''} ${indent}`}>
                                             <div
-                                                className={`flex items-center gap-2 w-full ${group?.nom === 'Sans groupe' ? 'min-h-0' : ''}`}>
+                                                className={`flex items-center gap-2 w-full ${isVirtualUngroupedCategory ? 'min-h-0' : ''}`}>
+                                                {showActSelectionIndicator && (
+                                                    <label className="inline-flex items-center gap-2 text-xs uppercase tracking-wide cursor-pointer select-none">
+                                                        <input
+                                                            type={selectionType === 'checkbox' ? 'checkbox' : 'radio'}
+                                                            className={`${selectionType === 'checkbox' ? 'checkbox checkbox-sm' : 'radio radio-sm'}`}
+                                                            name={selectionType === 'radio' ? `${vizRadioGroupName}-${cat.id}` : undefined}
+                                                            checked={actSelectionChecked}
+                                                            onChange={() => toggleActSelection(cat.id, act.id, selectionType)}
+                                                            aria-label={selectionType === 'checkbox' ? 'Sélection multiple' : 'Sélection unique'}
+                                                        />
+                                                    </label>
+                                                )}
                                                 <div
-                                                    className={`flex-1 min-w-0 ${group?.nom === 'Sans groupe' ? 'text-xs' : ''}`}>
+                                                    className={`flex-1 min-w-0 ${isVirtualUngroupedCategory ? 'text-xs' : ''}`}>
                                                     <div className="opacity-70 truncate">{act.libelle || '—'}</div>
                                                 </div>
                                                 <div className="join">
@@ -818,7 +936,24 @@ export default function ReadonlyGroupMatrix({
                             );
                         };
                         const allowTypeControls = moduleRisk === 'prevoyance' && typeof onOpenTypeModal === 'function';
-                        const selectionType = selectionTypeForCategory(cat.id);
+                        const isVirtualUngroupedCategory = isUngroupedCategory(cat);
+                        const showSelectionIndicator = shouldShowCategoryTypeIndicators && !isVirtualUngroupedCategory;
+                        const selectionChecked = !!catSelectionState[cat.id];
+                        const selectionTypeIndicator = showSelectionIndicator ? (
+                            <label className="inline-flex items-center gap-2 text-xs uppercase tracking-wide cursor-pointer select-none">
+                                <input
+                                    type={selectionType === 'checkbox' ? 'checkbox' : 'radio'}
+                                    className={`${selectionType === 'checkbox' ? 'checkbox checkbox-sm' : 'radio radio-sm'}`}
+                                    name={selectionType === 'radio' ? vizRadioGroupName : undefined}
+                                    checked={selectionChecked}
+                                    onChange={() => toggleCategorySelection(cat.id, selectionType)}
+                                    aria-label={selectionType === 'checkbox' ? 'Sélection multiple' : 'Sélection unique'}
+                                />
+                                <span className="opacity-70">
+                                    {/*{selectionType === 'checkbox' ? 'Multiple' : 'Unique'}*/}
+                                </span>
+                            </label>
+                        ) : null;
                         const groupSelectionBadge = allowTypeControls ? (
                             <span className="badge badge-outline">
                                 {selectionType === 'checkbox' ? 'Sélection multiple' : 'Sélection unique'}
@@ -829,8 +964,11 @@ export default function ReadonlyGroupMatrix({
                                 <tr className="bg-base-200">
                                     <th colSpan={colDefs.length} className="text-left">
                                         <div className="flex items-center gap-2">
-                                            {!(cat?.libelle === 'Sans groupe' && (cat.isVirtual || isUngroupedCategoryId(cat.id))) ? (
-                                                <span className="opacity-70">{cat.libelle || '—'}</span>
+                                            {!isVirtualUngroupedCategory ? (
+                                                <div className="flex items-center gap-2">
+                                                    {selectionTypeIndicator}
+                                                    <span className="opacity-70">{cat.libelle || '—'}</span>
+                                                </div>
                                             ) : (
                                                 <div className="flex-1 border-t border-base-200 my-1"/>
                                             )}

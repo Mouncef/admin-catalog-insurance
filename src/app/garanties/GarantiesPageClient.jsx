@@ -55,25 +55,6 @@ export default function GarantiesPageClient() {
     const {user} = useAuth();
     const formDisabled = editing ? (editing.id ? !canUpdate : !canCreate) : false;
 
-    useEffect(() => { setMounted(true) }, [])
-    useEffect(() => {
-        if (!mounted) return;
-        const needsMigration = (refActs || []).some((act) => !act?.createdAt);
-        if (needsMigration) {
-            setRefActs(sanitizeActs(refActs || []));
-        }
-    }, [mounted, refActs, setRefActs, moduleMap, categoryMap])
-
-    useEffect(() => {
-        if (riskFilter === 'all') return
-        if (moduleFilter === 'all') return
-        const mod = moduleMap.get(moduleFilter)
-        if (!mod || normalizeRisk(mod?.risque) !== riskFilter) {
-            setModuleFilter('all')
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [riskFilter, moduleFilter])
-
     // ===== Utils =====
     function uuid() {
         if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -119,6 +100,25 @@ export default function GarantiesPageClient() {
         }
         return by
     }, [refCategories, refModules])
+
+    useEffect(() => { setMounted(true) }, [])
+    useEffect(() => {
+        if (!mounted) return;
+        const needsMigration = (refActs || []).some((act) => !act?.createdAt);
+        if (needsMigration) {
+            setRefActs(sanitizeActs(refActs || []));
+        }
+    }, [mounted, refActs, setRefActs, moduleMap, categoryMap])
+
+    useEffect(() => {
+        if (riskFilter === 'all') return
+        if (moduleFilter === 'all') return
+        const mod = moduleMap.get(moduleFilter)
+        if (!mod || normalizeRisk(mod?.risque) !== riskFilter) {
+            setModuleFilter('all')
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [riskFilter, moduleFilter])
 
     // keeps code unique per category + reindex ordre per category
     function sanitizeActs(arr) {

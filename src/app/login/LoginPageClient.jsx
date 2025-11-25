@@ -79,7 +79,7 @@ export default function LoginPageClient() {
                             required
                         />
                     </label>
-                    <button className="btn btn-primary w-full" type="submit" disabled={submitting}>
+                    <button className="btn btn-primary my-5 w-full" type="submit" disabled={submitting}>
                         {submitting && <span className="loading loading-spinner loading-sm" />}
                         <span className="ml-1">Se connecter</span>
                     </button>

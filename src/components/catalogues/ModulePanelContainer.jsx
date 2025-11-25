@@ -12,12 +12,16 @@ import SubItemModal from '@/components/catalogues/inline/SubItemModal';
 import {usePermissions} from '@/providers/AuthProvider';
 
 const isPlainObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
-const normalizeSelectionType = (value) => (value === 'checkbox' ? 'checkbox' : 'radio');
+const normalizeSelectionType = (value) => {
+    if (value === 'checkbox') return 'checkbox';
+    if (value === 'radio') return 'radio';
+    return 'none';
+};
 const getSelectionTypeForCategory = (group, categoryId) => {
-    if (!group) return 'radio';
+    if (!group) return 'none';
     if (categoryId && isPlainObject(group.category_selection_types)) {
         const specific = group.category_selection_types[categoryId];
-        if (specific === 'checkbox' || specific === 'radio') {
+        if (specific === 'checkbox' || specific === 'radio' || specific === 'none') {
             return specific;
         }
     }
@@ -557,7 +561,7 @@ export default function ModulePanelContainer({
     function saveGroupType(value) {
         if (!typeModal?.groupId) return;
         if (!ensureCanUpdate()) return;
-        const selection = normalizeSelectionType(value || typeModal.value || 'radio');
+        const selection = normalizeSelectionType(value || typeModal.value || 'none');
         setGroupes((prev) =>
             (prev || []).map((g) => {
                 if (g.id !== typeModal.groupId) return g;
@@ -581,6 +585,7 @@ export default function ModulePanelContainer({
                 };
             })
         );
+        applyRequirementDefaults(selection, typeModal.groupId, typeModal.categoryId || null);
         setTypeModal(null);
         const scopeLabel = typeModal?.categoryName
             ? `Type mis à jour pour ${typeModal.categoryName}`
@@ -670,6 +675,7 @@ export default function ModulePanelContainer({
             groupe_id: gid,
             act_id: actId,
             ordre: i + 1,
+            is_optional: false,
         }));
         setMembres([...(membres || []), ...nextMembers]);
 
@@ -687,9 +693,9 @@ export default function ModulePanelContainer({
                     nom: String(groupe.nom || '').trim(),
                     priorite: Number(groupe.priorite) || 100,
                     category_groups: groupe.category_groups || {},
-                    selection_type: normalizeSelectionType(g.selection_type),
-                    category_selection_types: isPlainObject(g.category_selection_types)
-                        ? {...g.category_selection_types}
+                    selection_type: normalizeSelectionType(groupe.selection_type),
+                    category_selection_types: isPlainObject(groupe.category_selection_types)
+                        ? {...groupe.category_selection_types}
                         : {},
                 } : g
             )
@@ -724,12 +730,63 @@ export default function ModulePanelContainer({
                 groupe_id: gid,
                 act_id: actId,
                 ordre: i + 1,
+                is_optional: false,
             };
         });
         setMembres([...others, ...nextMembers]);
 
         showToast('success', 'Actes du groupe mis à jour');
         setActPickerFor(null);
+    }
+
+    function setActOptional(gid, actId, optional) {
+        if (!ensureCanUpdate()) return;
+        if (!gid || !actId) return;
+        let updated = false;
+        setMembres((prev) => {
+            const next = (prev || []).map((row) => {
+                if (row.groupe_id === gid && row.act_id === actId) {
+                    const nextRow = {...row, is_optional: !!optional};
+                    if (nextRow.is_optional !== row.is_optional) updated = true;
+                    return nextRow;
+                }
+                return row;
+            });
+            return updated ? next : prev;
+        });
+        if (updated) {
+            showToast('info', optional ? 'Garantie marquée facultative' : 'Garantie marquée obligatoire');
+        }
+    }
+
+    function getActIdsForCategory(catId) {
+        if (!catId) return [];
+        const acts = actsByCategory.get(catId) || [];
+        return acts.map((a) => a.id);
+    }
+
+    function applyRequirementDefaults(selection, gid, catId = null) {
+        const shouldOptional = selection !== 'radio';
+        const targets = new Set();
+        if (catId) {
+            getActIdsForCategory(catId).forEach((id) => targets.add(id));
+        } else {
+            for (const [, list] of actsByCategory.entries()) {
+                list.forEach((a) => targets.add(a.id));
+            }
+        }
+        if (targets.size === 0) return;
+        setMembres((prev) => {
+            let changed = false;
+            const next = (prev || []).map((row) => {
+                if (row.groupe_id !== gid) return row;
+                if (!targets.has(row.act_id)) return row;
+                if (!!row.is_optional === shouldOptional) return row;
+                changed = true;
+                return {...row, is_optional: shouldOptional};
+            });
+            return changed ? next : prev;
+        });
     }
 
     const cellHasContent = (cell) => {
@@ -1104,6 +1161,7 @@ export default function ModulePanelContainer({
                                 onOpenTypeModal={moduleRisk === 'prevoyance' && allowWrite ? openTypeModal : undefined}
                                 membres={membres}
                                 gvaleurs={gvaleurs}
+                                onToggleActOptional={moduleRisk === 'prevoyance' ? (actId, optional) => setActOptional(g.id, actId, optional) : undefined}
                                 onSave={(payload) => saveGrid(g, payload)}
                                 onCancel={() => setLocked(g.id, true)}
                             />
@@ -1159,7 +1217,17 @@ export default function ModulePanelContainer({
                                             type="radio"
                                             className="radio radio-sm"
                                             name="grp-type-choice"
-                                            checked={typeModal.value !== 'checkbox'}
+                                            checked={typeModal.value === 'none'}
+                                            onChange={() => setTypeModal((prev) => prev ? ({...prev, value: 'none'}) : prev)}
+                                        />
+                                        Neutre (aucune sélection imposée)
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                        <input
+                                            type="radio"
+                                            className="radio radio-sm"
+                                            name="grp-type-choice"
+                                            checked={typeModal.value === 'radio'}
                                             onChange={() => setTypeModal((prev) => prev ? ({...prev, value: 'radio'}) : prev)}
                                         />
                                         Sélection unique (Bouton radio)

@@ -71,4 +71,3 @@ docs/, OCCEA_*.pdf          # ressources design/fonctionnelles
 
 Toute contribution doit synchroniser `AGENTS.md` / `context.md` avec les évolutions notables pour garder la trace des conventions.
 
-codex resume 019a7860-e049-7c21-83f6-5a844dc660e2

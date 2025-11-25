@@ -156,6 +156,7 @@ function ViewerModulePanel({
                         ? g.sub_items.filter((si) => si.parent_act_id && si.libelle)
                         : [];
                     const categoryGroups = normalizeRisk(module?.risque) === 'prevoyance' && g.category_groups ? g.category_groups : null;
+                    const showOptionalToggle = moduleRisk === 'prevoyance';
                     const subItemsByParent = new Map();
                     for (const si of subItems) {
                         if (!subItemsByParent.has(si.parent_act_id)) subItemsByParent.set(si.parent_act_id, []);
@@ -206,6 +207,7 @@ function ViewerModulePanel({
                                     membres={membres}
                                     gvaleurs={gvaleurs}
                                     showSelectionTypeIndicators={showSelectionTypeIndicators}
+                                    showOptionalToggle={showOptionalToggle}
                                 />
                             </div>
                         </div>

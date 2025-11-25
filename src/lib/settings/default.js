@@ -70,7 +70,8 @@ export const defaultSettings = {
             "libelle": "MEDIUM",
             "ordre": 6,
             "is_enabled": false,
-            "ref_set_id": "set-classique"
+            "ref_set_id": "set-classique",
+            "risque": "sante"
         },
         {
             "id": "niv-confort",
@@ -78,7 +79,8 @@ export const defaultSettings = {
             "libelle": "CONFORT",
             "ordre": 7,
             "is_enabled": true,
-            "ref_set_id": "set-classique"
+            "ref_set_id": "set-classique",
+            "risque": "sante"
         },
         {
             "id": "753c55d8-11f4-4d26-9eb8-605d7d2d61ba",
@@ -86,7 +88,8 @@ export const defaultSettings = {
             "libelle": "BIEN-ETRE",
             "ordre": 8,
             "is_enabled": true,
-            "ref_set_id": "set-classique"
+            "ref_set_id": "set-classique",
+            "risque": "sante"
         },
         {
             "id": "niv-n1",
@@ -94,7 +97,8 @@ export const defaultSettings = {
             "libelle": "Niveau 1",
             "ordre": 1,
             "is_enabled": true,
-            "ref_set_id": "set-numerique"
+            "ref_set_id": "set-numerique",
+            "risque": "sante"
         },
         {
             "id": "niv-n2",
@@ -102,7 +106,8 @@ export const defaultSettings = {
             "libelle": "Niveau 2",
             "ordre": 2,
             "is_enabled": true,
-            "ref_set_id": "set-numerique"
+            "ref_set_id": "set-numerique",
+            "risque": "sante"
         },
         {
             "id": "niv-n3",
@@ -110,7 +115,8 @@ export const defaultSettings = {
             "libelle": "Niveau 3",
             "ordre": 3,
             "is_enabled": true,
-            "ref_set_id": "set-numerique"
+            "ref_set_id": "set-numerique",
+            "risque": "sante"
         },
         {
             "id": "niv-n4",
@@ -118,7 +124,8 @@ export const defaultSettings = {
             "libelle": "Niveau 4",
             "ordre": 4,
             "is_enabled": true,
-            "ref_set_id": "set-numerique"
+            "ref_set_id": "set-numerique",
+            "risque": "sante"
         },
         {
             "id": "niv-n5",
@@ -126,7 +133,8 @@ export const defaultSettings = {
             "libelle": "Niveau 5",
             "ordre": 5,
             "is_enabled": true,
-            "ref_set_id": "set-numerique"
+            "ref_set_id": "set-numerique",
+            "risque": "sante"
         },
         {
             "id": "niv-n6",
@@ -134,15 +142,17 @@ export const defaultSettings = {
             "libelle": "Niveau 6",
             "ordre": 6,
             "is_enabled": true,
-            "ref_set_id": "set-numerique"
+            "ref_set_id": "set-numerique",
+            "risque": "sante"
         },
         {
             "id": "niv-prev-base",
-            "code": "BASE",
+            "code": "BASE-PREV",
             "libelle": "Niveau unique prévoyance",
             "ordre": 1,
             "is_enabled": true,
-            "ref_set_id": "set-prevoyance-unique"
+            "ref_set_id": "set-prevoyance-unique",
+            "risque": "prevoyance"
         }
     ],
     ref_modules_v1: [

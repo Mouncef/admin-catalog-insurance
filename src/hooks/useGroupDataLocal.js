@@ -26,9 +26,21 @@ const lsSet = (k, v) => {
 // ===== sanitizers (conservent cat_order) =====
 export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
     if (!Array.isArray(arr)) return []
+    const normalizeSelectionType = (value) => {
+        if (value === 'checkbox') return 'checkbox'
+        if (value === 'radio') return 'radio'
+        return 'none'
+    }
     const out = []
     for (const raw of arr) {
         if (!raw) continue
+        const catSelectionTypes = {}
+        if (raw.category_selection_types && typeof raw.category_selection_types === 'object' && !Array.isArray(raw.category_selection_types)) {
+            for (const [catId, type] of Object.entries(raw.category_selection_types)) {
+                const normalized = normalizeSelectionType(type)
+                if (normalized) catSelectionTypes[catId] = normalized
+            }
+        }
         const g = {
             id: raw.id || uuid(),
             catalogue_id: raw.catalogue_id,
@@ -36,6 +48,8 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
             nom: String(raw.nom || '').trim(),
             priorite: Number.isFinite(Number(raw.priorite)) ? Number(raw.priorite) : 100,
             cat_order: Array.isArray(raw.cat_order) ? raw.cat_order : (raw.cat_order ?? []),
+            selection_type: normalizeSelectionType(raw.selection_type),
+            category_selection_types: catSelectionTypes,
         }
         if (!g.catalogue_id || !catalogueMap?.has(g.catalogue_id)) continue
         if (!g.ref_module_id || !moduleMap?.has(g.ref_module_id)) continue
@@ -52,10 +66,12 @@ export function sanitizeMembres(arr) {
         if (!raw || !raw.groupe_id || !raw.act_id) continue
         const gid = raw.groupe_id
         if (!byGroup.has(gid)) byGroup.set(gid, [])
+        const isOptional = raw.is_optional === true || raw.optional === true || raw.is_required === false
         byGroup.get(gid).push({
             groupe_id: gid,
             act_id: raw.act_id,
             ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : Infinity,
+            is_optional: isOptional,
         })
     }
     const out = []

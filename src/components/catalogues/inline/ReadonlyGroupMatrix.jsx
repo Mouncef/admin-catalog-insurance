@@ -2,6 +2,7 @@
 
 import {Fragment, useCallback, useEffect, useMemo, useState} from 'react';
 import ValueEditorTyped from '@/components/catalogues/inline/ValueEditorTyped';
+import PrevoyanceValueEditor from '@/components/catalogues/inline/PrevoyanceValueEditor';
 import {coerceCellValue} from '@/lib/utils/CatalogueInline';
 import {isUngroupedCategoryId} from "@/lib/utils/categoryUtils";
 import {normalizeRisk} from '@/lib/utils/StringUtil';
@@ -123,6 +124,8 @@ export default function ReadonlyGroupMatrix({
                                                 onDeleteCategoryLabel,
                                                 onOpenTypeModal,
                                                 showSelectionTypeIndicators = false,
+                                                showOptionalToggle = false,
+                                                onToggleActOptional,
                                             }) {
     const moduleRisk = normalizeRisk(module?.risque);
     const isPlainObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
@@ -130,11 +133,13 @@ export default function ReadonlyGroupMatrix({
         if (moduleRisk !== 'prevoyance') return 'radio';
         if (catId && isPlainObject(group?.category_selection_types)) {
             const specific = group.category_selection_types[catId];
-            if (specific === 'checkbox' || specific === 'radio') {
+            if (specific === 'checkbox' || specific === 'radio' || specific === 'none') {
                 return specific;
             }
         }
-        return group?.selection_type === 'checkbox' ? 'checkbox' : 'radio';
+        const base = group?.selection_type;
+        if (base === 'checkbox' || base === 'radio') return base;
+        return 'none';
     };
     const isUngroupedCategory = (category) => {
         if (!category) return false;
@@ -188,6 +193,18 @@ export default function ReadonlyGroupMatrix({
             .sort((a, b) => (a.ordre || 1e9) - (b.ordre || 1e9)),
         [membres, group.id]
     );
+    const memberByAct = useMemo(() => new Map(membresRows.map((m) => [m.act_id, m])), [membresRows]);
+    const buildInitialOptionalState = useCallback(() => {
+        const initial = {};
+        for (const row of membresRows) {
+            initial[row.act_id] = true;
+        }
+        return initial;
+    }, [membresRows]);
+    const [optionalEnabledState, setOptionalEnabledState] = useState(() => buildInitialOptionalState());
+    useEffect(() => {
+        setOptionalEnabledState(buildInitialOptionalState());
+    }, [buildInitialOptionalState]);
 
     const valMapInitial = useMemo(() => {
         const m = new Map();
@@ -278,6 +295,20 @@ export default function ReadonlyGroupMatrix({
     const membersSet = useMemo(() => new Set(membresRows.map((m) => m.act_id)), [membresRows]);
 
     const fallbackLevelId = combinedLevels?.[0]?.id || null;
+
+    const isActEnabled = useCallback(
+        (actObj) => {
+            if (!showOptionalToggle) return true;
+            if (!actObj) return true;
+            const baseId =
+                actObj.isSubItem && actObj.parent_act_id
+                    ? actObj.parent_act_id
+                    : actObj.id;
+            if (!baseId) return true;
+            return optionalEnabledState[baseId] !== false;
+        },
+        [optionalEnabledState, showOptionalToggle]
+    );
 
     const getCellForDependency = (dep) => {
         if (!dep || !dep.act_id) return null;
@@ -407,6 +438,7 @@ export default function ReadonlyGroupMatrix({
         return map;
     }, [catsBase, group?.category_selection_types, group?.selection_type, moduleRisk]);
     const categoryHasActControls = (cat, selectionType) => {
+        if (selectionType === 'none') return false;
         if (isUngroupedCategory(cat)) return true;
         return selectionType === 'checkbox';
     };
@@ -634,8 +666,10 @@ export default function ReadonlyGroupMatrix({
 
         const canEdit = editable && !!actId && !!levelId;
         const highlight = isEditingCell ? 'bg-base-200/60' : '';
+        const enabledRow = isActEnabled(act);
+        const disabledClass = enabledRow ? '' : 'opacity-50';
         let dependencyText = null;
-        let displayValue = cellValue;
+        let displayValue = enabledRow ? cellValue : null;
         const depends = cellValue?.depends_on;
         if (depends) {
             if (depends.mode === 'formula') {
@@ -682,8 +716,8 @@ export default function ReadonlyGroupMatrix({
         return (
             <td
                 key={key}
-                className={`align-top text-center ${highlight}`}
-                onDoubleClick={() => canEdit && startEdit(act, level, columnKind, optionKey)}
+                className={`align-top text-center ${highlight} ${disabledClass}`}
+                onDoubleClick={() => canEdit && enabledRow && startEdit(act, level, columnKind, optionKey)}
                 title={canEdit && editable ? 'Double-clique pour éditer' : ''}
             >
                 <CellView v={displayValue} dependencyText={dependencyText}/>
@@ -821,12 +855,30 @@ export default function ReadonlyGroupMatrix({
                             const showActSelectionIndicator =
                                 shouldShowCategoryTypeIndicators && hasActControls;
                             const actSelectionChecked = showActSelectionIndicator ? !!catActSelectionMap[act.id] : false;
+                            const memberRow = memberByAct.get(act.id);
+                            const isOptional = memberRow?.is_optional === true || memberRow?.is_required === false;
+                            const isEnabled = isActEnabled(act);
+                            const rowDimmed = isOptional && showOptionalToggle && !isEnabled;
+                            const requirementControlsEnabled = moduleRisk === 'prevoyance';
+                            const canToggleRequirement =
+                                requirementControlsEnabled &&
+                                selectionType === 'radio' &&
+                                typeof onToggleActOptional === 'function';
+                            const requirementBadge = requirementControlsEnabled ? (
+                                <span className={`badge badge-sm ${isOptional ? 'badge-outline' : 'badge-primary'}`}>
+                                    {isOptional ? 'Facultative' : 'Obligatoire'}
+                                </span>
+                            ) : null;
+                            const toggleRequirement = () => {
+                                if (!canToggleRequirement) return;
+                                onToggleActOptional?.(act.id, !isOptional);
+                            };
                             return (
                                 <Fragment key={`${act.id}-${indent || 'root'}`}>
                                     <tr>
                                         <td className={`table-pin-cols ${isVirtualUngroupedCategory ? 'py-1' : ''} ${indent}`}>
                                             <div
-                                                className={`flex items-center gap-2 w-full ${isVirtualUngroupedCategory ? 'min-h-0' : ''}`}>
+                                                className={`flex items-center gap-2 w-full ${isVirtualUngroupedCategory ? 'min-h-0' : ''} ${rowDimmed ? 'opacity-60' : ''}`}>
                                                 {showActSelectionIndicator && (
                                                     <label className="inline-flex items-center gap-2 text-xs uppercase tracking-wide cursor-pointer select-none">
                                                         <input
@@ -839,10 +891,36 @@ export default function ReadonlyGroupMatrix({
                                                         />
                                                     </label>
                                                 )}
+                                                {isOptional && showOptionalToggle && (
+                                                    <label className="flex items-center gap-2 text-xs">
+                                                        {/*<span className="opacity-70">Activer</span>*/}
+                                                        <input
+                                                            type="checkbox"
+                                                            className="toggle toggle-xs"
+                                                            checked={isEnabled}
+                                                            onChange={(e) => setOptionalEnabledState((prev) => ({
+                                                                ...prev,
+                                                                [act.id]: e.target.checked,
+                                                            }))}
+                                                        />
+                                                    </label>
+                                                )}
                                                 <div
                                                     className={`flex-1 min-w-0 ${isVirtualUngroupedCategory ? 'text-xs' : ''}`}>
+
                                                     <div className="opacity-70 truncate">{act.libelle || '—'}</div>
                                                 </div>
+                                                {requirementBadge}
+
+                                                {canToggleRequirement && !showOptionalToggle && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-xs btn-ghost"
+                                                        onClick={toggleRequirement}
+                                                    >
+                                                        {isOptional ? 'Marquer obligatoire' : 'Marquer facultative'}
+                                                    </button>
+                                                )}
                                                 <div className="join">
                                                     {allowSubItems && editable && (
                                                         <button
@@ -924,6 +1002,7 @@ export default function ReadonlyGroupMatrix({
                                                         id: sub.id,
                                                         libelle: sub.libelle,
                                                         isSubItem: true,
+                                                        parent_act_id: act.id,
                                                     },
                                                     level: col.level,
                                                     columnKind: col.kind,
@@ -937,7 +1016,7 @@ export default function ReadonlyGroupMatrix({
                         };
                         const allowTypeControls = moduleRisk === 'prevoyance' && typeof onOpenTypeModal === 'function';
                         const isVirtualUngroupedCategory = isUngroupedCategory(cat);
-                        const showSelectionIndicator = shouldShowCategoryTypeIndicators && !isVirtualUngroupedCategory;
+                        const showSelectionIndicator = shouldShowCategoryTypeIndicators && !isVirtualUngroupedCategory && selectionType !== 'none';
                         const selectionChecked = !!catSelectionState[cat.id];
                         const selectionTypeIndicator = showSelectionIndicator ? (
                             <label className="inline-flex items-center gap-2 text-xs uppercase tracking-wide cursor-pointer select-none">
@@ -956,7 +1035,11 @@ export default function ReadonlyGroupMatrix({
                         ) : null;
                         const groupSelectionBadge = allowTypeControls ? (
                             <span className="badge badge-outline">
-                                {selectionType === 'checkbox' ? 'Sélection multiple' : 'Sélection unique'}
+                                {selectionType === 'checkbox'
+                                    ? 'Sélection multiple'
+                                    : selectionType === 'radio'
+                                        ? 'Sélection unique'
+                                        : 'Neutre'}
                             </span>
                         ) : null;
                         return (
@@ -970,7 +1053,7 @@ export default function ReadonlyGroupMatrix({
                                                     <span className="opacity-70">{cat.libelle || '—'}</span>
                                                 </div>
                                             ) : (
-                                                <div className="flex-1 border-t border-base-200 my-1"/>
+                                                <div className=""/>
                                             )}
                                             <div className="flex-1 ">
                                                 {allowTypeControls && (
@@ -1072,16 +1155,22 @@ export default function ReadonlyGroupMatrix({
             )}
 
             {editing && (
-                <div className="modal modal-open">
-                    <div className="modal-box max-w-3xl">
-                        <h3 className="font-bold text-lg">
-                            {editing.meta?.actLabel || 'Garantie'} — {editing.meta?.levelLabel || 'Niveau'}
-                            <span className="badge badge-sm ml-2">{editing.meta?.kindLabel || ''}</span>
-                        </h3>
-                        <p className="opacity-70 text-sm mb-4">
-                            Ajuste les champs ci-dessous puis enregistre pour persister la valeur dans le référentiel
-                            local.
-                        </p>
+            <div className="modal modal-open">
+                <div className="modal-box max-w-3xl">
+                    <h3 className="font-bold text-lg">
+                        {editing.meta?.actLabel || 'Garantie'} — {editing.meta?.levelLabel || 'Niveau'}
+                        <span className="badge badge-sm ml-2">{editing.meta?.kindLabel || ''}</span>
+                    </h3>
+                    <p className="opacity-70 text-sm mb-4">
+                        Ajuste les champs ci-dessous puis enregistre pour persister la valeur dans le référentiel
+                        local.
+                    </p>
+                    {normalizeRisk(module?.risque) === 'prevoyance' ? (
+                        <PrevoyanceValueEditor
+                            value={editing.draft}
+                            onChange={(next) => setEditing((prev) => prev ? ({...prev, draft: next}) : prev)}
+                        />
+                    ) : (
                         <ValueEditorTyped
                             value={editing.draft}
                             onChange={(next) => setEditing((prev) => prev ? ({...prev, draft: next}) : prev)}
@@ -1090,11 +1179,12 @@ export default function ReadonlyGroupMatrix({
                             defaultLevelId={editing.nivId}
                             allowDependencies={normalizeRisk(module?.risque) === 'prevoyance'}
                         />
-                        <div className="modal-action">
-                            <button type="button" className="btn" onClick={cancelEdit}>Annuler</button>
-                            <button type="button" className="btn btn-primary" onClick={saveEdit}>Enregistrer</button>
-                        </div>
+                    )}
+                    <div className="modal-action">
+                        <button type="button" className="btn" onClick={cancelEdit}>Annuler</button>
+                        <button type="button" className="btn btn-primary" onClick={saveEdit}>Enregistrer</button>
                     </div>
+                </div>
                     <button className="modal-backdrop" aria-label="Fermer la fenêtre" onClick={cancelEdit}/>
                 </div>
             )}

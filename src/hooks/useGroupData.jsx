@@ -19,6 +19,11 @@ const lsSet = (k, v) => { if (safeLS) { try { safeLS.setItem(k, JSON.stringify(v
 // hooks/useGroupData*.js
 export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
     if (!Array.isArray(arr)) return [];
+    const normalizeSelectionType = (value) => {
+        if (value === 'checkbox') return 'checkbox';
+        if (value === 'radio') return 'radio';
+        return 'none';
+    };
     const out = [];
     for (const raw of arr) {
         if (!raw) continue;
@@ -60,11 +65,11 @@ export function sanitizeGroupes(arr, catalogueMap, moduleMap) {
         if (isPlainObject(raw.category_selection_types)) {
             for (const [catId, type] of Object.entries(raw.category_selection_types)) {
                 if (!catId) continue;
-                const normalized = type === 'checkbox' ? 'checkbox' : type === 'radio' ? 'radio' : null;
+                const normalized = normalizeSelectionType(type);
                 if (normalized) categorySelectionTypes[catId] = normalized;
             }
         }
-        const selectionType = raw.selection_type === 'checkbox' ? 'checkbox' : 'radio';
+        const selectionType = normalizeSelectionType(raw.selection_type);
         const g = {
             id: raw.id || uuid(),
             catalogue_id: raw.catalogue_id,
@@ -99,6 +104,7 @@ export function sanitizeMembres(arr) {
         if (!raw || !raw.groupe_id || !raw.act_id) continue;
         const gid = raw.groupe_id;
         if (!byGroup.has(gid)) byGroup.set(gid, []);
+        const isOptional = raw.is_optional === true || raw.optional === true || raw.is_required === false;
         const schemaRaw = raw.ui_schema || {};
         const options = Array.isArray(schemaRaw.options)
             ? schemaRaw.options
@@ -124,6 +130,7 @@ export function sanitizeMembres(arr) {
             act_id: raw.act_id,
             ordre: Number.isFinite(Number(raw.ordre)) ? Number(raw.ordre) : Infinity,
             ui_schema,
+            is_optional: isOptional,
         });
     }
     const out = [];

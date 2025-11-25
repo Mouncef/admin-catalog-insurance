@@ -26,7 +26,7 @@ export default function NiveauxPageClient() {
     const { refNiveau, setRefNiveau } = useRefNiveau()
     const { refNiveauSets } = useRefNiveauSets?.() || { refNiveauSets: [] } // safe if provider absent
     const [riskFilter, setRiskFilter] = useState('all')
-
+    console.log(refNiveau)
     const [mounted, setMounted] = useState(false)
     const [query, setQuery] = useState('')
     const [sortAsc, setSortAsc] = useState(true)
@@ -79,15 +79,15 @@ export default function NiveauxPageClient() {
     function sanitizeLevels(arr) {
         // nettoyage basique + on conserve ref_set_id
         const list = []
-        const seen = new Set()
+        const seen = new Set() // unicité par set (code peut exister dans plusieurs sets)
         for (const raw of arr || []) {
             if (!raw) continue
             let code = String(raw.code || '').trim()
             if (!code) continue
-            const key = code.toLowerCase()
+            const refSetId = raw.ref_set_id ? String(raw.ref_set_id) : undefined
+            const key = `${refSetId || '__NOSET__'}::${code.toLowerCase()}`
             if (seen.has(key)) continue
             seen.add(key)
-            const refSetId = raw.ref_set_id ? String(raw.ref_set_id) : undefined
             const riskFromSet = refSetId ? setMap.get(refSetId)?.risque : undefined
             list.push(ensureAuditFields({
                 id: raw.id || uuid(),

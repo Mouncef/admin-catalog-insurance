@@ -208,6 +208,11 @@ export default function ConfigureCatalogueInlineBase({catalogueId, targetRisk = 
 
     const niveauSetsForCatalogue = useMemo(() => {
         const target = catalogueRisk
+        console.log("target")
+        // console.log(target)
+        // console.log(refNiveauSets)
+        // console.log(refNiveauSets[2].is_enabled)
+        // console.log(normalizeRisk(refNiveauSets[2].risque))
         const enabled = (refNiveauSets || [])
             .filter((s) => s && s.is_enabled !== false && normalizeRisk(s.risque) === target)
             .sort(
@@ -215,7 +220,6 @@ export default function ConfigureCatalogueInlineBase({catalogueId, targetRisk = 
                     (a.ordre ?? 0) - (b.ordre ?? 0) ||
                     (String(a.code || '').localeCompare(String(b.code || '')))
             )
-
         let list = enabled
         if (forcedSetId) {
             const forced = (refNiveauSets || []).find((s) => s.id === forcedSetId)
@@ -232,6 +236,7 @@ export default function ConfigureCatalogueInlineBase({catalogueId, targetRisk = 
                 dedup.push(s)
             }
         }
+
         return dedup
     }, [refNiveauSets, catalogueRisk, forcedSetId])
 
@@ -259,6 +264,7 @@ export default function ConfigureCatalogueInlineBase({catalogueId, targetRisk = 
     }, [forcedSetId, allowedSetIds, firstEnabledSet])
 
     const hasAvailableModules = modulesForRisk.length > 0
+
     const hasAvailableNiveaux = niveauSetsForCatalogue.length > 0 && niveauxForCatalogue.length > 0
 
     function getSetIdForModule(modId) {

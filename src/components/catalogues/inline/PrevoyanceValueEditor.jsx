@@ -24,8 +24,10 @@ function sanitizeNumber(input) {
 
 const buildLabel = (basis, values = []) => {
     const basisLabel = BASIS_OPTIONS.find((b) => b.id === basis)?.label || '% salaire';
-    const valuesLabel = values.map((n) => `${n}%`).join(' / ');
-    return `${valuesLabel || '—'} (${basisLabel})`;
+    if (!values.length) return `— (${basisLabel})`;
+    const first = `${values[0]}%`;
+    if (values.length === 1) return `${first} (${basisLabel})`;
+    return `${first} (+${values.length - 1}) (${basisLabel})`;
 };
 
 export default function PrevoyanceValueEditor({value, onChange}) {
@@ -49,6 +51,7 @@ export default function PrevoyanceValueEditor({value, onChange}) {
     );
 
     const label = useMemo(() => buildLabel(basis, sanitizedRows), [basis, sanitizedRows]);
+    const fullLabel = useMemo(() => sanitizedRows.map((n) => `${n}%`).join(' • '), [sanitizedRows]);
 
     const lastEmittedRef = useRef('');
     useEffect(() => {
@@ -57,12 +60,12 @@ export default function PrevoyanceValueEditor({value, onChange}) {
         lastEmittedRef.current = key;
         onChange?.({
             type: 'prev_salary_table',
-            data: {basis, values: sanitizedRows},
+            data: {basis, values: sanitizedRows, full_label: fullLabel},
             expression: '',
             value: label,
             depends_on: null,
         });
-    }, [basis, sanitizedRows, label, onChange]);
+    }, [basis, sanitizedRows, label, fullLabel, onChange]);
 
     const numberPattern = /^\d{0,4}$/; // simple guard, 0-4 digits
 

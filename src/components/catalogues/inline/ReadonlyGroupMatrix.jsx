@@ -79,10 +79,15 @@ function CellView({v, dependencyText}) {
     const hasE = (v?.expression || '').trim().length > 0;
     const minHint = v?.data?.min_hint;
     const maxHint = v?.data?.max_hint;
+    const tooltip = v?.data?.full_label || v?.value || '';
     if (!hasV && !hasE && !minHint && !maxHint && !dependencyText) return <span className="opacity-40">—</span>;
     return (
         <div className="min-h-8">
-            {hasV && <div className="font-mono text-sm break-words">{v.value}</div>}
+            {hasV && (
+                <div className="font-mono text-sm break-words" title={tooltip}>
+                    {v.value}
+                </div>
+            )}
             {hasE && <div className="text-xs opacity-70 break-words" title={v.expression}>{v.expression}</div>}
             {(minHint || maxHint) && (
                 <div className="text-xs opacity-60 mt-1 space-y-0.5">
